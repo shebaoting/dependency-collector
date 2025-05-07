@@ -39,19 +39,19 @@ export default class EditDependencyModal extends Modal {
       <div className="Modal-body">
         <div className="Form Form--centered">
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.title_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.title_label')}</label> */}
             <input className="FormControl" bidi={this.title} />
           </div>
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.link_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.link_label')}</label> */}
             <input type="url" className="FormControl" bidi={this.link} />
           </div>
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.description_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.description_label')}</label> */}
             <textarea className="FormControl" bidi={this.description} rows="5"></textarea>
           </div>
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.tags_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.tags_label')}</label> */}
             {this.loadingTags ? (
               <LoadingIndicator />
             ) : (

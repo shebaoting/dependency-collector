@@ -45,7 +45,7 @@ export default class SubmitDependencyModal extends Modal {
       <div className="Modal-body">
         <div className="Form Form--centered">
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.title_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.title_label')}</label> */}
             <input
               className="FormControl"
               bidi={this.title}
@@ -53,11 +53,11 @@ export default class SubmitDependencyModal extends Modal {
             />
           </div>
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.link_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.link_label')}</label> */}
             <input type="url" className="FormControl" bidi={this.link} placeholder="https://example.com" />
           </div>
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.description_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.description_label')}</label> */}
             <textarea
               className="FormControl"
               bidi={this.description}
@@ -66,7 +66,7 @@ export default class SubmitDependencyModal extends Modal {
             ></textarea>
           </div>
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.tags_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.tags_label')}</label> */}
             {this.loadingTags ? (
               <p>{app.translator.trans('core.lib.loading_indicator_text')}</p>
             ) : (

@@ -636,24 +636,24 @@ var EditDependencyModal = /*#__PURE__*/function (_Modal) {
       className: "Form Form--centered"
     }, m("div", {
       className: "Form-group"
-    }, m("label", null, app.translator.trans('shebaoting-dependency-collector.forum.modal.title_label')), m("input", {
+    }, m("input", {
       className: "FormControl",
       bidi: this.title
     })), m("div", {
       className: "Form-group"
-    }, m("label", null, app.translator.trans('shebaoting-dependency-collector.forum.modal.link_label')), m("input", {
+    }, m("input", {
       type: "url",
       className: "FormControl",
       bidi: this.link
     })), m("div", {
       className: "Form-group"
-    }, m("label", null, app.translator.trans('shebaoting-dependency-collector.forum.modal.description_label')), m("textarea", {
+    }, m("textarea", {
       className: "FormControl",
       bidi: this.description,
       rows: "5"
     })), m("div", {
       className: "Form-group"
-    }, m("label", null, app.translator.trans('shebaoting-dependency-collector.forum.modal.tags_label')), this.loadingTags ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_5___default()), null) : m("div", {
+    }, this.loadingTags ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_5___default()), null) : m("div", {
       className: "TagSelector"
     }, this.availableTagsList.length > 0 ? this.availableTagsList.map(function (tag) {
       var isSelected = _this.selectedTagIds().includes(tag.id());
@@ -830,27 +830,27 @@ var SubmitDependencyModal = /*#__PURE__*/function (_Modal) {
       className: "Form Form--centered"
     }, m("div", {
       className: "Form-group"
-    }, m("label", null, app.translator.trans('shebaoting-dependency-collector.forum.modal.title_label')), m("input", {
+    }, m("input", {
       className: "FormControl",
       bidi: this.title,
       placeholder: app.translator.trans('shebaoting-dependency-collector.forum.modal.title_placeholder')
     })), m("div", {
       className: "Form-group"
-    }, m("label", null, app.translator.trans('shebaoting-dependency-collector.forum.modal.link_label')), m("input", {
+    }, m("input", {
       type: "url",
       className: "FormControl",
       bidi: this.link,
       placeholder: "https://example.com"
     })), m("div", {
       className: "Form-group"
-    }, m("label", null, app.translator.trans('shebaoting-dependency-collector.forum.modal.description_label')), m("textarea", {
+    }, m("textarea", {
       className: "FormControl",
       bidi: this.description,
       rows: "5",
       placeholder: app.translator.trans('shebaoting-dependency-collector.forum.modal.description_placeholder')
     })), m("div", {
       className: "Form-group"
-    }, m("label", null, app.translator.trans('shebaoting-dependency-collector.forum.modal.tags_label')), this.loadingTags ? m("p", null, app.translator.trans('core.lib.loading_indicator_text')) :
+    }, this.loadingTags ? m("p", null, app.translator.trans('core.lib.loading_indicator_text')) :
     // --- 修改开始: 渲染平铺的标签 ---
     m("div", {
       className: "TagSelector"
