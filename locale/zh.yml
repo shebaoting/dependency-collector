@@ -49,6 +49,7 @@ shebaoting-dependency-collector:
       create_tag: 创建标签 # “创建标签”按钮文本
       approve: 批准 # “批准”按钮文本
       reject: 拒绝 # “拒绝”按钮文本
+      delete_button: 删除
     confirm:
       approve: 确定要批准依赖项 # 批准确认提示
       reject: 确定要拒绝依赖项 # 拒绝确认提示

@@ -101,6 +101,8 @@ var DependencyCollectorSettingsPage = /*#__PURE__*/function (_ExtensionPage) {
     var _this = this;
     return m("section", {
       className: "PluginTagsSection"
+    }, m("div", {
+      className: "Page-header"
     }, m("h2", null, app.translator.trans('shebaoting-dependency-collector.admin.page.manage_tags_title')), m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
       className: "Button Button--primary",
       icon: "fas fa-plus",
@@ -110,7 +112,7 @@ var DependencyCollectorSettingsPage = /*#__PURE__*/function (_ExtensionPage) {
           onsave: _this.loadPluginTags.bind(_this)
         });
       }
-    }, app.translator.trans('shebaoting-dependency-collector.admin.actions.create_tag')), this.loadingTags ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) : this.pluginTags.length === 0 ? m("p", null, app.translator.trans('shebaoting-dependency-collector.admin.page.no_plugin_tags')) : m("table", {
+    }, app.translator.trans('shebaoting-dependency-collector.admin.actions.create_tag'))), this.loadingTags ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) : this.pluginTags.length === 0 ? m("p", null, app.translator.trans('shebaoting-dependency-collector.admin.page.no_plugin_tags')) : m("table", {
       className: "Table PluginTagsTable"
     }, m("thead", null, m("tr", null, m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_name')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_slug')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_color')), " ", m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_icon')), " ", m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_item_count')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.actions')))), m("tbody", null, this.pluginTags.map(function (tag) {
       return m("tr", {
@@ -156,7 +158,7 @@ var DependencyCollectorSettingsPage = /*#__PURE__*/function (_ExtensionPage) {
         onclick: function onclick() {
           return _this.deleteTag(tag);
         },
-        "aria-label": app.translator.trans('core.admin.basics.delete_button')
+        "aria-label": app.translator.trans('shebaoting-dependency-collector.admin.actions.delete_button')
       })));
     }))));
   }

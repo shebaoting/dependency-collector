@@ -30,14 +30,16 @@ export default class DependencyCollectorSettingsPage extends ExtensionPage {
   pluginTagsSection() {
     return (
       <section className="PluginTagsSection">
-        <h2>{app.translator.trans('shebaoting-dependency-collector.admin.page.manage_tags_title')}</h2>
-        <Button
-          className="Button Button--primary"
-          icon="fas fa-plus"
-          onclick={() => app.modal.show(EditTagModal, { key: 'new-tag', onsave: this.loadPluginTags.bind(this) })}
-        >
-          {app.translator.trans('shebaoting-dependency-collector.admin.actions.create_tag')}
-        </Button>
+        <div className="Page-header">
+          <h2>{app.translator.trans('shebaoting-dependency-collector.admin.page.manage_tags_title')}</h2>
+          <Button
+            className="Button Button--primary"
+            icon="fas fa-plus"
+            onclick={() => app.modal.show(EditTagModal, { key: 'new-tag', onsave: this.loadPluginTags.bind(this) })}
+          >
+            {app.translator.trans('shebaoting-dependency-collector.admin.actions.create_tag')}
+          </Button>
+        </div>
         {this.loadingTags ? (
           <LoadingIndicator />
         ) : this.pluginTags.length === 0 ? (
@@ -108,7 +110,7 @@ export default class DependencyCollectorSettingsPage extends ExtensionPage {
                       className="Button Button--icon Button--danger"
                       icon="fas fa-trash"
                       onclick={() => this.deleteTag(tag)}
-                      aria-label={app.translator.trans('core.admin.basics.delete_button')}
+                      aria-label={app.translator.trans('shebaoting-dependency-collector.admin.actions.delete_button')}
                     />
                   </td>
                 </tr>
