@@ -10,12 +10,11 @@ use Tobscure\JsonApi\Document;
 use Shebaoting\DependencyCollector\Models\DependencyTag;
 use Shebaoting\DependencyCollector\Api\Serializer\DependencyTagSerializer;
 use Shebaoting\DependencyCollector\Api\Validators\DependencyTagValidator;
-use Illuminate\Support\Str; // 用于生成 slug
+use Illuminate\Support\Str;
 
 class CreateDependencyTagController extends AbstractCreateController
 {
     public $serializer = DependencyTagSerializer::class;
-
     protected $validator;
 
     public function __construct(DependencyTagValidator $validator)
@@ -29,15 +28,19 @@ class CreateDependencyTagController extends AbstractCreateController
         $data = Arr::get($request->getParsedBody(), 'data', []);
         $attributes = Arr::get($data, 'attributes', []);
 
-        // 权限检查
         $actor->assertCan('dependency-collector.manageTags');
 
-        // 如果 slug 未提供，则根据 name 自动生成
         if (empty($attributes['slug']) && !empty($attributes['name'])) {
             $attributes['slug'] = Str::slug($attributes['name']);
         }
 
-        // 验证数据
+        // --- 设置默认图标 ---
+        $icon = Arr::get($attributes, 'icon');
+        if (empty($icon)) {
+            $attributes['icon'] = 'fas fa-code'; // 如果为空，设置默认值
+        }
+        // --- 默认图标设置结束 ---
+
         $this->validator->assertValid($attributes);
 
         $tag = DependencyTag::build(
@@ -45,15 +48,10 @@ class CreateDependencyTagController extends AbstractCreateController
             Arr::get($attributes, 'slug'),
             Arr::get($attributes, 'description'),
             Arr::get($attributes, 'color'),
-            Arr::get($attributes, 'icon')
+            Arr::get($attributes, 'icon') // 使用可能已设置了默认值的 icon
         );
 
-        // 如果有其他需要在保存前处理的逻辑，可以在这里添加
-        // 例如，触发事件：$this->events->dispatch(new Events\TagWillBeCreated($tag, $actor, $data));
-
         $tag->save();
-
-        // 例如，触发事件：$this->events->dispatch(new Events\TagWasCreated($tag, $actor, $data));
 
         return $tag;
     }

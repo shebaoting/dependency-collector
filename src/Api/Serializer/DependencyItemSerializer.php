@@ -22,22 +22,20 @@ class DependencyItemSerializer extends AbstractSerializer
             'title'        => $item->title,
             'link'         => $item->link,
             'description'  => $item->description,
-            'status'       => $item->status,
+            'status'       => $item->status, // 确保 status 始终被序列化
             'submittedAt'  => $this->formatDate($item->submitted_at),
             'approvedAt'   => $this->formatDate($item->approved_at),
-            'canEdit'      => $this->actor->can('edit', $item),
-            'canApprove'   => $this->actor->can('dependency-collector.moderate'),
-            // Add more attributes as needed
+            'canEdit'      => $this->actor->can('edit', $item), // 使用 Policy 检查
+            'canApprove'   => $this->actor->can('approve', $item), // 使用 Policy 检查
         ];
 
-        if ($this->actor->can('dependency-collector.moderate') || ($this->actor->id === $item->user_id && $item->status === 'pending')) {
-            // Expose more details if user can moderate or is the owner of a pending item
-        }
-
+        // 注意：之前的 moderate 检查被合并到了 canApprove/canEdit 中，
+        // status 属性现在总是包含的，前端可以根据 status 和 canEdit/canApprove 来决定显示什么。
 
         return $attributes;
     }
 
+    // user(), approver(), tags() 方法保持不变
     protected function user($item): ?Relationship
     {
         return $this->hasOne($item, BasicUserSerializer::class);

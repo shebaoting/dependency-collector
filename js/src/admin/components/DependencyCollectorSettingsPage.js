@@ -1,185 +1,30 @@
+// js/src/admin/components/DependencyCollectorSettingsPage.js
+
 import ExtensionPage from 'flarum/admin/components/ExtensionPage';
 import Button from 'flarum/common/components/Button';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 import EditTagModal from './EditTagModal';
-import ItemList from 'flarum/common/utils/ItemList';
-import humanTime from 'flarum/common/utils/humanTime';
+import { alert } from 'flarum/common/utils/Alert';
+import withAttr from 'flarum/common/utils/withAttr';
 
 export default class DependencyCollectorSettingsPage extends ExtensionPage {
   oninit(vnode) {
     super.oninit(vnode);
-    this.loadingPending = true;
-    this.loadingApproved = true;
     this.loadingTags = true;
-
-    this.pendingItems = [];
-    this.approvedItems = [];
     this.pluginTags = [];
-
-    this.loadPendingItems();
-    this.loadApprovedItems();
     this.loadPluginTags();
+    this.editingTagId = null;
+    this.editingField = null;
+    this.editValue = '';
+    this.savingTagId = null;
   }
 
   content() {
     return (
       <div className="DependencyCollectorSettingsPage">
-        <div className="container">
-          {this.pendingItemsSection()}
-          {this.approvedItemsSection()}
-          {this.pluginTagsSection()}
-        </div>
+        <div className="container">{this.pluginTagsSection()}</div>
       </div>
     );
-  }
-
-  pendingItemsSection() {
-    return (
-      <section className="PendingItemsSection">
-        <h2>{app.translator.trans('shebaoting-dependency-collector.admin.page.pending_items_title')}</h2>
-        {this.loadingPending ? (
-          <LoadingIndicator />
-        ) : this.pendingItems.length === 0 ? (
-          <p>{app.translator.trans('shebaoting-dependency-collector.admin.page.no_pending_items')}</p>
-        ) : (
-          <table className="Table DependencyTable">
-            <thead>
-              <tr>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.title')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.submitted_by')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.submitted_at')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tags')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>{this.pendingItems.map((item) => this.itemRow(item, true))}</tbody>
-          </table>
-        )}
-      </section>
-    );
-  }
-
-  approvedItemsSection() {
-    return (
-      <section className="ApprovedItemsSection">
-        <h2>{app.translator.trans('shebaoting-dependency-collector.admin.page.approved_items_title')}</h2>
-        {this.loadingApproved ? (
-          <LoadingIndicator />
-        ) : this.approvedItems.length === 0 ? (
-          <p>{app.translator.trans('shebaoting-dependency-collector.admin.page.no_approved_items')}</p>
-        ) : (
-          <table className="Table DependencyTable">
-            <thead>
-              <tr>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.title')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.approved_by')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.approved_at')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tags')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>{this.approvedItems.map((item) => this.itemRow(item, false))}</tbody>
-          </table>
-        )}
-      </section>
-    );
-  }
-
-  itemRow(item, isPending) {
-    const submitter = item.user();
-    const approver = item.approver();
-
-    return (
-      <tr key={item.id()}>
-        <td>
-          <a href={item.link()} target="_blank">
-            {item.title()}
-          </a>
-          <br />
-          <small>{item.description()}</small>
-        </td>
-        <td>{submitter ? submitter.username() : 'N/A'}</td>
-        <td>{isPending ? humanTime(item.submittedAt()) : approver ? approver.username() : 'N/A'}</td>
-        <td>
-          {isPending
-            ? item.tags()
-              ? item
-                  .tags()
-                  .map((t) => t.name())
-                  .join(', ')
-              : ''
-            : humanTime(item.approvedAt())}
-        </td>
-        <td>
-          {isPending && (
-            <Button className="Button Button--icon" icon="fas fa-edit" onclick={() => this.editItem(item, true)}>
-              {app.translator.trans('core.admin.basics.edit_button')}
-            </Button>
-          )}
-          {!isPending && (
-            <Button className="Button Button--icon" icon="fas fa-edit" onclick={() => this.editItem(item, false)}>
-              {app.translator.trans('core.admin.basics.edit_button')}
-            </Button>
-          )}
-          {isPending && (
-            <Button className="Button Button--icon Button--success" icon="fas fa-check" onclick={() => this.updateItemStatus(item, 'approved')}>
-              {app.translator.trans('shebaoting-dependency-collector.admin.actions.approve')}
-            </Button>
-          )}
-          {isPending && (
-            <Button className="Button Button--icon Button--danger" icon="fas fa-times" onclick={() => this.updateItemStatus(item, 'rejected')}>
-              {app.translator.trans('shebaoting-dependency-collector.admin.actions.reject')}
-            </Button>
-          )}
-          <Button className="Button Button--icon Button--danger" icon="fas fa-trash" onclick={() => this.deleteItem(item, isPending)}>
-            {app.translator.trans('core.admin.basics.delete_button')}
-          </Button>
-        </td>
-      </tr>
-    );
-  }
-
-  editItem(item, isPending) {
-    alert('Edit functionality to be implemented. Item ID: ' + item.id());
-  }
-
-  updateItemStatus(item, status) {
-    if (
-      !confirm(
-        app.translator.trans(
-          status === 'approved' ? 'shebaoting-dependency-collector.admin.confirm.approve' : 'shebaoting-dependency-collector.admin.confirm.reject'
-        ) + ` "${item.title()}"?`
-      )
-    )
-      return;
-
-    item
-      .save({ status: status })
-      .then(() => {
-        this.loadPendingItems();
-        this.loadApprovedItems();
-        m.redraw();
-      })
-      .catch((e) => {
-        console.error(e);
-        alert('Error updating status.');
-      });
-  }
-
-  deleteItem(item, isPendingList) {
-    if (!confirm(app.translator.trans('shebaoting-dependency-collector.admin.confirm.delete') + ` "${item.title()}"?`)) return;
-
-    item
-      .delete()
-      .then(() => {
-        if (isPendingList) this.loadPendingItems();
-        else this.loadApprovedItems();
-        m.redraw();
-      })
-      .catch((e) => {
-        console.error(e);
-        alert('Error deleting item.');
-      });
   }
 
   pluginTagsSection() {
@@ -189,7 +34,7 @@ export default class DependencyCollectorSettingsPage extends ExtensionPage {
         <Button
           className="Button Button--primary"
           icon="fas fa-plus"
-          onclick={() => app.modal.show(EditTagModal, { onsave: this.loadPluginTags.bind(this) })}
+          onclick={() => app.modal.show(EditTagModal, { key: 'new-tag', onsave: this.loadPluginTags.bind(this) })}
         >
           {app.translator.trans('shebaoting-dependency-collector.admin.actions.create_tag')}
         </Button>
@@ -201,34 +46,70 @@ export default class DependencyCollectorSettingsPage extends ExtensionPage {
           <table className="Table PluginTagsTable">
             <thead>
               <tr>
+                {/* --- 修改表头 --- */}
                 <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_name')}</th>
                 <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_slug')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_color_icon')}</th>
+                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_color')}</th> {/* 修改 */}
+                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_icon')}</th> {/* 新增 */}
                 <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_item_count')}</th>
                 <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.actions')}</th>
+                {/* --- 表头修改结束 --- */}
               </tr>
             </thead>
             <tbody>
               {this.pluginTags.map((tag) => (
-                <tr key={tag.id()}>
-                  <td>{tag.name()}</td>
-                  <td>{tag.slug()}</td>
-                  <td>
-                    {tag.color() && (
-                      <span style={{ backgroundColor: tag.color(), padding: '2px 5px', color: 'white', borderRadius: '3px', marginRight: '5px' }}>
-                        {tag.color()}
-                      </span>
-                    )}
-                    {tag.icon() && <i className={tag.icon()}></i>}
+                <tr key={tag.id()} className={this.savingTagId === tag.id() ? 'saving' : ''}>
+                  {/* 名称 - 可编辑 */}
+                  <td onclick={() => this.startEditing(tag, 'name')}>
+                    {this.isEditing(tag, 'name') ? this.renderInput(tag, 'name', 'text') : tag.name()}
                   </td>
-                  <td>{tag.itemCount()}</td>
+                  {/* Slug - 可编辑 */}
+                  <td onclick={() => this.startEditing(tag, 'slug')}>
+                    {this.isEditing(tag, 'slug') ? this.renderInput(tag, 'slug', 'text') : tag.slug()}
+                  </td>
+                  {/* --- 颜色列 --- */}
+                  <td onclick={() => this.startEditing(tag, 'color')}>
+                    {
+                      this.isEditing(tag, 'color') ? (
+                        this.renderInput(tag, 'color', 'text', '#RRGGBB') // 使用 renderInput 辅助方法
+                      ) : tag.color() ? (
+                        <span
+                          style={{
+                            backgroundColor: tag.color(),
+                            padding: '2px 5px',
+                            color: this.getTextColorForBackground(tag.color()),
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {tag.color()}
+                        </span>
+                      ) : (
+                        <span style="cursor: pointer; color: #aaa;">(none)</span>
+                      ) // 提供无颜色时的点击区域
+                    }
+                  </td>
+                  {/* --- 图标列 --- */}
+                  <td onclick={() => this.startEditing(tag, 'icon')}>
+                    {this.isEditing(tag, 'icon') ? (
+                      this.renderInput(tag, 'icon', 'text', 'fas fa-tag') // 使用 renderInput 辅助方法
+                    ) : tag.icon() ? (
+                      <i className={tag.icon()} style="cursor: pointer;"></i>
+                    ) : (
+                      <span style="cursor: pointer; color: #aaa;">(none)</span>
+                    )}
+                  </td>
+                  {/* --- 列拆分结束 --- */}
+                  {/* 条目数 - 不可编辑 */}
+                  <td>{tag.itemCount() !== undefined ? tag.itemCount() : 'N/A'}</td>
+                  {/* 操作 - 只保留删除 */}
                   <td>
                     <Button
-                      className="Button Button--icon"
-                      icon="fas fa-edit"
-                      onclick={() => app.modal.show(EditTagModal, { key: `edit-tag-${tag.id()}`, tag, onsave: this.loadPluginTags.bind(this) })}
+                      className="Button Button--icon Button--danger"
+                      icon="fas fa-trash"
+                      onclick={() => this.deleteTag(tag)}
+                      aria-label={app.translator.trans('core.admin.basics.delete_button')}
                     />
-                    <Button className="Button Button--icon Button--danger" icon="fas fa-trash" onclick={() => this.deleteTag(tag)} />
                   </td>
                 </tr>
               ))}
@@ -239,45 +120,150 @@ export default class DependencyCollectorSettingsPage extends ExtensionPage {
     );
   }
 
-  loadPendingItems() {
-    this.loadingPending = true;
-    app.store.find('dependency-items', { filter: { status: 'pending' }, sort: '-submittedAt' }).then((items) => {
-      this.pendingItems = items;
-      this.loadingPending = false;
-      m.redraw();
-    });
+  // --- 新增：渲染内联输入框的辅助方法 ---
+  renderInput(tag, field, type = 'text', placeholder = '') {
+    return (
+      <input
+        className="FormControl FormControl--inline"
+        type={type}
+        value={this.editValue}
+        placeholder={placeholder}
+        oninput={withAttr('value', (val) => (this.editValue = val))}
+        onblur={(e) => this.saveEdit(tag, field, e.target.value)}
+        onkeydown={(e) => this.handleKeyDown(e, tag, field, e.target.value)}
+        onupdate={(vnode) => this.focusInput(vnode)}
+      />
+    );
   }
 
-  loadApprovedItems() {
-    this.loadingApproved = true;
-    app.store.find('dependency-items', { filter: { status: 'approved' }, sort: '-approvedAt' }).then((items) => {
-      this.approvedItems = items;
-      this.loadingApproved = false;
-      m.redraw();
-    });
+  // isEditing 方法保持不变
+  isEditing(tag, field) {
+    return this.editingTagId === tag.id() && this.editingField === field;
   }
 
+  // startEditing 方法保持不变
+  startEditing(tag, field) {
+    if (this.savingTagId) return;
+    this.editingTagId = tag.id();
+    this.editingField = field;
+    this.editValue = tag[field]() || '';
+    m.redraw();
+  }
+
+  // focusInput 方法保持不变
+  focusInput(vnode) {
+    if (vnode.dom && typeof vnode.dom.focus === 'function') {
+      setTimeout(() => vnode.dom.focus(), 0);
+    }
+  }
+
+  // handleKeyDown 方法保持不变
+  handleKeyDown(event, tag, field, value) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.saveEdit(tag, field, value);
+    } else if (event.key === 'Escape') {
+      this.cancelEdit();
+    }
+    event.redraw = false;
+  }
+
+  // saveEdit 方法保持不变
+  saveEdit(tag, field, value) {
+    if (this.savingTagId === tag.id()) {
+      console.log('Save already in progress for tag:', tag.id());
+      return;
+    }
+
+    if (value === (tag[field]() || '')) {
+      this.cancelEdit();
+      return;
+    }
+
+    this.savingTagId = tag.id();
+    m.redraw();
+
+    const attributesToSave = { [field]: value };
+    console.log('Data being passed to tag.save():', attributesToSave);
+
+    tag
+      .save(attributesToSave)
+      .then(() => {
+        console.log('Tag saved successfully.');
+        this.cancelEdit();
+      })
+      .catch((error) => {
+        console.error(`Error saving tag ${tag.id()} field ${field}:`, error);
+        let errorDetail = app.translator.trans('core.lib.error.generic_message');
+        if (error.response?.errors?.length > 0) {
+          const fieldError = error.response.errors.find((e) => e.source?.pointer === `/data/attributes/${field}`);
+          errorDetail = fieldError?.detail || error.response.errors[0].detail || errorDetail;
+        }
+        alert.component({ type: 'error' }, errorDetail);
+
+        this.savingTagId = null;
+        m.redraw();
+      });
+  }
+
+  // cancelEdit 方法保持不变
+  cancelEdit() {
+    this.editingTagId = null;
+    this.editingField = null;
+    this.editValue = '';
+    this.savingTagId = null;
+    m.redraw();
+  }
+
+  // loadPluginTags 方法保持不变
   loadPluginTags() {
     this.loadingTags = true;
-    app.store.find('dependency-tags', { sort: 'name' }).then((tags) => {
-      this.pluginTags = tags;
-      this.loadingTags = false;
-      m.redraw();
-    });
+    // 确保请求包含 itemCount (如果后端支持 sort=itemCount 或 include=itemCount)
+    // 否则依赖 serializer 计算
+    app.store
+      .find('dependency-tags', { sort: 'name' })
+      .then((tags) => {
+        this.pluginTags = tags;
+        this.loadingTags = false;
+        m.redraw();
+      })
+      .catch(() => {
+        this.loadingTags = false;
+        m.redraw();
+      });
   }
 
+  // deleteTag 方法保持不变
   deleteTag(tag) {
+    if (this.savingTagId === tag.id()) return;
     if (!confirm(app.translator.trans('shebaoting-dependency-collector.admin.confirm.delete_tag', { name: tag.name() }))) return;
 
     tag
       .delete()
       .then(() => {
-        this.loadPluginTags();
+        this.pluginTags = this.pluginTags.filter((t) => t.id() !== tag.id());
         m.redraw();
       })
       .catch((e) => {
         console.error(e);
-        alert('Error deleting tag.');
+        alert.component({ type: 'error' }, 'Error deleting tag.');
       });
+  }
+
+  // getTextColorForBackground 方法保持不变
+  getTextColorForBackground(hexColor) {
+    if (!hexColor) return 'white';
+    hexColor = hexColor.replace('#', '');
+    if (hexColor.length === 3) {
+      hexColor = hexColor[0].repeat(2) + hexColor[1].repeat(2) + hexColor[2].repeat(2);
+    }
+    if (hexColor.length !== 6) {
+      return 'white';
+    }
+    const r = parseInt(hexColor.substr(0, 2), 16);
+    const g = parseInt(hexColor.substr(2, 2), 16);
+    const b = parseInt(hexColor.substr(4, 2), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
   }
 }

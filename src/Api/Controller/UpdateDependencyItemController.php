@@ -2,7 +2,7 @@
 
 namespace Shebaoting\DependencyCollector\Api\Controller;
 
-use Flarum\Api\Controller\AbstractShowController; // Use Show as base for PATCH
+use Flarum\Api\Controller\AbstractShowController;
 use Flarum\Http\RequestUtil;
 use Illuminate\Support\Arr;
 use Psr\Http\Message\ServerRequestInterface;
@@ -11,13 +11,12 @@ use Shebaoting\DependencyCollector\Models\DependencyItem;
 use Shebaoting\DependencyCollector\Api\Serializer\DependencyItemSerializer;
 use Shebaoting\DependencyCollector\Api\Validators\DependencyItemValidator;
 use Carbon\Carbon;
+use Flarum\Foundation\ValidationException; // 用于抛出验证错误
 
 class UpdateDependencyItemController extends AbstractShowController
 {
     public $serializer = DependencyItemSerializer::class;
-
     public $include = ['user', 'tags', 'approver'];
-
     protected $validator;
 
     public function __construct(DependencyItemValidator $validator)
@@ -34,61 +33,98 @@ class UpdateDependencyItemController extends AbstractShowController
 
         $item = DependencyItem::findOrFail($itemId);
 
-        // Check permissions
-        if ($actor->id === $item->user_id && $item->status === 'pending' && $actor->can('editOwnPending', $item)) {
-            // Allow user to edit their own pending submission (limited fields)
-            // This is an optional feature, if implemented, create 'editOwnPending' permission
-        } elseif ($actor->can('dependency-collector.moderate')) {
-            // Admin/Moderator can edit more
-        } else {
-            $actor->assertPermission(false); // Deny access
-        }
+        // --- 权限检查: 使用 Policy ---
+        // 检查用户是否有编辑权限
+        $actor->assertCan('edit', $item);
+        // --- 权限检查结束 ---
 
-        $this->validator->assertValid(array_merge($attributes, ['is_update' => true]));
+        // 准备验证数据
+        $validationAttributes = $attributes;
+        // 将模型实例传递给验证器，以便它可以忽略 unique 规则中的当前项（如果需要）
+        $this->validator->setItem($item); // 假设验证器有 setItem 方法
+        $this->validator->assertValid($validationAttributes);
 
-        if (isset($attributes['title'])) {
+        $isDirty = false; // 标记是否有更改
+
+        // --- 更新属性 ---
+        if (isset($attributes['title']) && $attributes['title'] !== $item->title) {
             $item->title = $attributes['title'];
+            $isDirty = true;
         }
-        if (isset($attributes['link'])) {
+        if (isset($attributes['link']) && $attributes['link'] !== $item->link) {
             $item->link = $attributes['link'];
+            $isDirty = true;
         }
-        if (isset($attributes['description'])) {
+        if (isset($attributes['description']) && $attributes['description'] !== $item->description) {
             $item->description = $attributes['description'];
+            $isDirty = true;
         }
+        // --- 属性更新结束 ---
 
-        // Admin/Moderator specific updates
-        if ($actor->can('dependency-collector.moderate')) {
-            if (isset($attributes['status']) && in_array($attributes['status'], ['approved', 'rejected', 'pending'])) {
-                if ($item->status !== 'approved' && $attributes['status'] === 'approved') {
-                    $item->approved_at = Carbon::now();
-                    $item->approver_user_id = $actor->id;
-                } elseif ($attributes['status'] !== 'approved') {
-                    $item->approved_at = null;
-                    $item->approver_user_id = null;
+        // --- 处理状态变更 (仅当 status 属性被传递时) ---
+        if (isset($attributes['status'])) {
+            $newStatus = $attributes['status'];
+            // 检查用户是否有权更改状态 (批准/取消批准)
+            if ($newStatus !== $item->status) {
+                $actor->assertCan('approve', $item); // 检查是否有批准权限
+
+                if (in_array($newStatus, ['approved', 'pending', 'rejected'])) {
+                    if ($newStatus === 'approved' && $item->status !== 'approved') {
+                        $item->approved_at = Carbon::now();
+                        $item->approver_user_id = $actor->id;
+                    } elseif ($newStatus !== 'approved') {
+                        // 如果状态变为非 approved，清除批准信息
+                        $item->approved_at = null;
+                        $item->approver_user_id = null;
+                    }
+                    $item->status = $newStatus;
+                    $isDirty = true;
+                } else {
+                    // 如果传递的状态值无效
+                    throw new ValidationException(['status' => 'Invalid status value provided.']);
                 }
-                $item->status = $attributes['status'];
             }
         }
+        // --- 状态变更处理结束 ---
 
-        // Handle tags update
+        // --- 处理标签更新 ---
         $relationships = Arr::get($data, 'relationships', []);
         if (isset($relationships['tags']['data'])) {
-            $tagIds = [];
+            $newTagIds = [];
             foreach ($relationships['tags']['data'] as $tagData) {
                 if (isset($tagData['id'])) {
-                    $tagIds[] = $tagData['id'];
+                    $newTagIds[] = $tagData['id'];
                 }
             }
-            // Ensure at least one tag if admin is editing
-            if ($actor->can('dependency-collector.moderate') && empty($tagIds)) {
-                // throw new ValidationException(['tags' => 'At least one tag is required for approved items.']);
+
+            // 在同步之前获取当前的标签ID，用于比较是否有变化
+            $currentTagIds = $item->tags()->pluck('id')->all();
+            // 对两个数组进行排序，以便准确比较
+            sort($currentTagIds);
+            sort($newTagIds);
+
+            if ($currentTagIds !== $newTagIds) {
+                // 验证标签ID是否存在等 (可以在 Validator 中完成)
+                // 确保至少有一个标签，如果这是业务规则
+                if (empty($newTagIds) && $item->status === 'approved') { // 例如：已批准的项必须有标签
+                    // throw new ValidationException(['tags' => 'An approved item must have at least one tag.']);
+                }
+                $item->tags()->sync($newTagIds);
+                $isDirty = true;
             }
-            $item->tags()->sync($tagIds);
+        }
+        // --- 标签更新处理结束 ---
+
+        // 只有在实际发生更改时才保存
+        if ($isDirty) {
+            // 如果需要触发事件
+            // $this->events->dispatch(new Events\ItemWillBeUpdated($item, $actor, $data));
+            $item->save();
+            // $this->events->dispatch(new Events\ItemWasUpdated($item, $actor, $data));
         }
 
 
-        $item->save();
-
+        // 控制器最终会加载关联关系并使用序列化器返回更新后的模型
         return $item;
     }
 }

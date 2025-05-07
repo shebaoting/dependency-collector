@@ -43,6 +43,8 @@ shebaoting-dependency-collector:
       tag_color_icon: 颜色与图标
       tag_item_count: 条目数
       actions: 操作
+      tag_color: 颜色      # 新增或修改
+      tag_icon: 图标       # 新增
     actions:
       create_tag: 创建标签 # “创建标签”按钮文本
       approve: 批准 # “批准”按钮文本

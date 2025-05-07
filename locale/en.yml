@@ -41,6 +41,8 @@ shebaoting-dependency-collector:
       tag_color_icon: Color & Icon
       tag_item_count: Items
       actions: Actions
+      tag_color: Color      # 新增或修改
+      tag_icon: Icon       # 新增
     actions:
       create_tag: Create Tag
       approve: Approve

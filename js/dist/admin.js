@@ -61,10 +61,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! flarum/common/components/LoadingIndicator */ "flarum/common/components/LoadingIndicator");
 /* harmony import */ var flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3__);
 /* harmony import */ var _EditTagModal__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./EditTagModal */ "./src/admin/components/EditTagModal.js");
-/* harmony import */ var flarum_common_utils_ItemList__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! flarum/common/utils/ItemList */ "flarum/common/utils/ItemList");
-/* harmony import */ var flarum_common_utils_ItemList__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(flarum_common_utils_ItemList__WEBPACK_IMPORTED_MODULE_5__);
-/* harmony import */ var flarum_common_utils_humanTime__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! flarum/common/utils/humanTime */ "flarum/common/utils/humanTime");
-/* harmony import */ var flarum_common_utils_humanTime__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(flarum_common_utils_humanTime__WEBPACK_IMPORTED_MODULE_6__);
+/* harmony import */ var flarum_common_utils_Alert__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! flarum/common/utils/Alert */ "flarum/common/utils/Alert");
+/* harmony import */ var flarum_common_utils_Alert__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(flarum_common_utils_Alert__WEBPACK_IMPORTED_MODULE_5__);
+/* harmony import */ var flarum_common_utils_withAttr__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! flarum/common/utils/withAttr */ "flarum/common/utils/withAttr");
+/* harmony import */ var flarum_common_utils_withAttr__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(flarum_common_utils_withAttr__WEBPACK_IMPORTED_MODULE_6__);
+
+// js/src/admin/components/DependencyCollectorSettingsPage.js
 
 
 
@@ -80,116 +82,23 @@ var DependencyCollectorSettingsPage = /*#__PURE__*/function (_ExtensionPage) {
   var _proto = DependencyCollectorSettingsPage.prototype;
   _proto.oninit = function oninit(vnode) {
     _ExtensionPage.prototype.oninit.call(this, vnode);
-    this.loadingPending = true;
-    this.loadingApproved = true;
     this.loadingTags = true;
-    this.pendingItems = [];
-    this.approvedItems = [];
     this.pluginTags = [];
-    this.loadPendingItems();
-    this.loadApprovedItems();
     this.loadPluginTags();
+    this.editingTagId = null;
+    this.editingField = null;
+    this.editValue = '';
+    this.savingTagId = null;
   };
   _proto.content = function content() {
     return m("div", {
       className: "DependencyCollectorSettingsPage"
     }, m("div", {
       className: "container"
-    }, this.pendingItemsSection(), this.approvedItemsSection(), this.pluginTagsSection()));
-  };
-  _proto.pendingItemsSection = function pendingItemsSection() {
-    var _this = this;
-    return m("section", {
-      className: "PendingItemsSection"
-    }, m("h2", null, app.translator.trans('shebaoting-dependency-collector.admin.page.pending_items_title')), this.loadingPending ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) : this.pendingItems.length === 0 ? m("p", null, app.translator.trans('shebaoting-dependency-collector.admin.page.no_pending_items')) : m("table", {
-      className: "Table DependencyTable"
-    }, m("thead", null, m("tr", null, m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.title')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.submitted_by')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.submitted_at')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tags')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.actions')))), m("tbody", null, this.pendingItems.map(function (item) {
-      return _this.itemRow(item, true);
-    }))));
-  };
-  _proto.approvedItemsSection = function approvedItemsSection() {
-    var _this2 = this;
-    return m("section", {
-      className: "ApprovedItemsSection"
-    }, m("h2", null, app.translator.trans('shebaoting-dependency-collector.admin.page.approved_items_title')), this.loadingApproved ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) : this.approvedItems.length === 0 ? m("p", null, app.translator.trans('shebaoting-dependency-collector.admin.page.no_approved_items')) : m("table", {
-      className: "Table DependencyTable"
-    }, m("thead", null, m("tr", null, m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.title')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.approved_by')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.approved_at')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tags')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.actions')))), m("tbody", null, this.approvedItems.map(function (item) {
-      return _this2.itemRow(item, false);
-    }))));
-  };
-  _proto.itemRow = function itemRow(item, isPending) {
-    var _this3 = this;
-    var submitter = item.user();
-    var approver = item.approver();
-    return m("tr", {
-      key: item.id()
-    }, m("td", null, m("a", {
-      href: item.link(),
-      target: "_blank"
-    }, item.title()), m("br", null), m("small", null, item.description())), m("td", null, submitter ? submitter.username() : 'N/A'), m("td", null, isPending ? flarum_common_utils_humanTime__WEBPACK_IMPORTED_MODULE_6___default()(item.submittedAt()) : approver ? approver.username() : 'N/A'), m("td", null, isPending ? item.tags() ? item.tags().map(function (t) {
-      return t.name();
-    }).join(', ') : '' : flarum_common_utils_humanTime__WEBPACK_IMPORTED_MODULE_6___default()(item.approvedAt())), m("td", null, isPending && m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
-      className: "Button Button--icon",
-      icon: "fas fa-edit",
-      onclick: function onclick() {
-        return _this3.editItem(item, true);
-      }
-    }, app.translator.trans('core.admin.basics.edit_button')), !isPending && m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
-      className: "Button Button--icon",
-      icon: "fas fa-edit",
-      onclick: function onclick() {
-        return _this3.editItem(item, false);
-      }
-    }, app.translator.trans('core.admin.basics.edit_button')), isPending && m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
-      className: "Button Button--icon Button--success",
-      icon: "fas fa-check",
-      onclick: function onclick() {
-        return _this3.updateItemStatus(item, 'approved');
-      }
-    }, app.translator.trans('shebaoting-dependency-collector.admin.actions.approve')), isPending && m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
-      className: "Button Button--icon Button--danger",
-      icon: "fas fa-times",
-      onclick: function onclick() {
-        return _this3.updateItemStatus(item, 'rejected');
-      }
-    }, app.translator.trans('shebaoting-dependency-collector.admin.actions.reject')), m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
-      className: "Button Button--icon Button--danger",
-      icon: "fas fa-trash",
-      onclick: function onclick() {
-        return _this3.deleteItem(item, isPending);
-      }
-    }, app.translator.trans('core.admin.basics.delete_button'))));
-  };
-  _proto.editItem = function editItem(item, isPending) {
-    alert('Edit functionality to be implemented. Item ID: ' + item.id());
-  };
-  _proto.updateItemStatus = function updateItemStatus(item, status) {
-    var _this4 = this;
-    if (!confirm(app.translator.trans(status === 'approved' ? 'shebaoting-dependency-collector.admin.confirm.approve' : 'shebaoting-dependency-collector.admin.confirm.reject') + (" \"" + item.title() + "\"?"))) return;
-    item.save({
-      status: status
-    }).then(function () {
-      _this4.loadPendingItems();
-      _this4.loadApprovedItems();
-      m.redraw();
-    })["catch"](function (e) {
-      console.error(e);
-      alert('Error updating status.');
-    });
-  };
-  _proto.deleteItem = function deleteItem(item, isPendingList) {
-    var _this5 = this;
-    if (!confirm(app.translator.trans('shebaoting-dependency-collector.admin.confirm.delete') + (" \"" + item.title() + "\"?"))) return;
-    item["delete"]().then(function () {
-      if (isPendingList) _this5.loadPendingItems();else _this5.loadApprovedItems();
-      m.redraw();
-    })["catch"](function (e) {
-      console.error(e);
-      alert('Error deleting item.');
-    });
+    }, this.pluginTagsSection()));
   };
   _proto.pluginTagsSection = function pluginTagsSection() {
-    var _this6 = this;
+    var _this = this;
     return m("section", {
       className: "PluginTagsSection"
     }, m("h2", null, app.translator.trans('shebaoting-dependency-collector.admin.page.manage_tags_title')), m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
@@ -197,94 +106,234 @@ var DependencyCollectorSettingsPage = /*#__PURE__*/function (_ExtensionPage) {
       icon: "fas fa-plus",
       onclick: function onclick() {
         return app.modal.show(_EditTagModal__WEBPACK_IMPORTED_MODULE_4__["default"], {
-          onsave: _this6.loadPluginTags.bind(_this6)
+          key: 'new-tag',
+          onsave: _this.loadPluginTags.bind(_this)
         });
       }
     }, app.translator.trans('shebaoting-dependency-collector.admin.actions.create_tag')), this.loadingTags ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) : this.pluginTags.length === 0 ? m("p", null, app.translator.trans('shebaoting-dependency-collector.admin.page.no_plugin_tags')) : m("table", {
       className: "Table PluginTagsTable"
-    }, m("thead", null, m("tr", null, m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_name')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_slug')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_color_icon')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_item_count')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.actions')))), m("tbody", null, this.pluginTags.map(function (tag) {
+    }, m("thead", null, m("tr", null, m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_name')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_slug')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_color')), " ", m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_icon')), " ", m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.tag_item_count')), m("th", null, app.translator.trans('shebaoting-dependency-collector.admin.table.actions')))), m("tbody", null, this.pluginTags.map(function (tag) {
       return m("tr", {
-        key: tag.id()
-      }, m("td", null, tag.name()), m("td", null, tag.slug()), m("td", null, tag.color() && m("span", {
+        key: tag.id(),
+        className: _this.savingTagId === tag.id() ? 'saving' : ''
+      }, m("td", {
+        onclick: function onclick() {
+          return _this.startEditing(tag, 'name');
+        }
+      }, _this.isEditing(tag, 'name') ? _this.renderInput(tag, 'name', 'text') : tag.name()), m("td", {
+        onclick: function onclick() {
+          return _this.startEditing(tag, 'slug');
+        }
+      }, _this.isEditing(tag, 'slug') ? _this.renderInput(tag, 'slug', 'text') : tag.slug()), m("td", {
+        onclick: function onclick() {
+          return _this.startEditing(tag, 'color');
+        }
+      }, _this.isEditing(tag, 'color') ? _this.renderInput(tag, 'color', 'text', '#RRGGBB') // 使用 renderInput 辅助方法
+      : tag.color() ? m("span", {
         style: {
           backgroundColor: tag.color(),
           padding: '2px 5px',
-          color: 'white',
+          color: _this.getTextColorForBackground(tag.color()),
           borderRadius: '3px',
-          marginRight: '5px'
+          cursor: 'pointer'
         }
-      }, tag.color()), tag.icon() && m("i", {
-        className: tag.icon()
-      })), m("td", null, tag.itemCount()), m("td", null, m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
-        className: "Button Button--icon",
-        icon: "fas fa-edit",
+      }, tag.color()) : m("span", {
+        style: "cursor: pointer; color: #aaa;"
+      }, "(none)") // 提供无颜色时的点击区域
+      ), m("td", {
         onclick: function onclick() {
-          return app.modal.show(_EditTagModal__WEBPACK_IMPORTED_MODULE_4__["default"], {
-            key: "edit-tag-" + tag.id(),
-            tag: tag,
-            onsave: _this6.loadPluginTags.bind(_this6)
-          });
+          return _this.startEditing(tag, 'icon');
         }
-      }), m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
+      }, _this.isEditing(tag, 'icon') ? _this.renderInput(tag, 'icon', 'text', 'fas fa-tag') // 使用 renderInput 辅助方法
+      : tag.icon() ? m("i", {
+        className: tag.icon(),
+        style: "cursor: pointer;"
+      }) : m("span", {
+        style: "cursor: pointer; color: #aaa;"
+      }, "(none)")), m("td", null, tag.itemCount() !== undefined ? tag.itemCount() : 'N/A'), m("td", null, m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
         className: "Button Button--icon Button--danger",
         icon: "fas fa-trash",
         onclick: function onclick() {
-          return _this6.deleteTag(tag);
-        }
+          return _this.deleteTag(tag);
+        },
+        "aria-label": app.translator.trans('core.admin.basics.delete_button')
       })));
     }))));
-  };
-  _proto.loadPendingItems = function loadPendingItems() {
-    var _this7 = this;
-    this.loadingPending = true;
-    app.store.find('dependency-items', {
-      filter: {
-        status: 'pending'
+  }
+
+  // --- 新增：渲染内联输入框的辅助方法 ---
+  ;
+  _proto.renderInput = function renderInput(tag, field, type, placeholder) {
+    var _this2 = this;
+    if (type === void 0) {
+      type = 'text';
+    }
+    if (placeholder === void 0) {
+      placeholder = '';
+    }
+    return m("input", {
+      className: "FormControl FormControl--inline",
+      type: type,
+      value: this.editValue,
+      placeholder: placeholder,
+      oninput: flarum_common_utils_withAttr__WEBPACK_IMPORTED_MODULE_6___default()('value', function (val) {
+        return _this2.editValue = val;
+      }),
+      onblur: function onblur(e) {
+        return _this2.saveEdit(tag, field, e.target.value);
       },
-      sort: '-submittedAt'
-    }).then(function (items) {
-      _this7.pendingItems = items;
-      _this7.loadingPending = false;
+      onkeydown: function onkeydown(e) {
+        return _this2.handleKeyDown(e, tag, field, e.target.value);
+      },
+      onupdate: function onupdate(vnode) {
+        return _this2.focusInput(vnode);
+      }
+    });
+  }
+
+  // isEditing 方法保持不变
+  ;
+  _proto.isEditing = function isEditing(tag, field) {
+    return this.editingTagId === tag.id() && this.editingField === field;
+  }
+
+  // startEditing 方法保持不变
+  ;
+  _proto.startEditing = function startEditing(tag, field) {
+    if (this.savingTagId) return;
+    this.editingTagId = tag.id();
+    this.editingField = field;
+    this.editValue = tag[field]() || '';
+    m.redraw();
+  }
+
+  // focusInput 方法保持不变
+  ;
+  _proto.focusInput = function focusInput(vnode) {
+    if (vnode.dom && typeof vnode.dom.focus === 'function') {
+      setTimeout(function () {
+        return vnode.dom.focus();
+      }, 0);
+    }
+  }
+
+  // handleKeyDown 方法保持不变
+  ;
+  _proto.handleKeyDown = function handleKeyDown(event, tag, field, value) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.saveEdit(tag, field, value);
+    } else if (event.key === 'Escape') {
+      this.cancelEdit();
+    }
+    event.redraw = false;
+  }
+
+  // saveEdit 方法保持不变
+  ;
+  _proto.saveEdit = function saveEdit(tag, field, value) {
+    var _attributesToSave,
+      _this3 = this;
+    if (this.savingTagId === tag.id()) {
+      console.log('Save already in progress for tag:', tag.id());
+      return;
+    }
+    if (value === (tag[field]() || '')) {
+      this.cancelEdit();
+      return;
+    }
+    this.savingTagId = tag.id();
+    m.redraw();
+    var attributesToSave = (_attributesToSave = {}, _attributesToSave[field] = value, _attributesToSave);
+    console.log('Data being passed to tag.save():', attributesToSave);
+    tag.save(attributesToSave).then(function () {
+      console.log('Tag saved successfully.');
+      _this3.cancelEdit();
+    })["catch"](function (error) {
+      var _error$response;
+      console.error("Error saving tag " + tag.id() + " field " + field + ":", error);
+      var errorDetail = app.translator.trans('core.lib.error.generic_message');
+      if (((_error$response = error.response) == null || (_error$response = _error$response.errors) == null ? void 0 : _error$response.length) > 0) {
+        var fieldError = error.response.errors.find(function (e) {
+          var _e$source;
+          return ((_e$source = e.source) == null ? void 0 : _e$source.pointer) === "/data/attributes/" + field;
+        });
+        errorDetail = (fieldError == null ? void 0 : fieldError.detail) || error.response.errors[0].detail || errorDetail;
+      }
+      flarum_common_utils_Alert__WEBPACK_IMPORTED_MODULE_5__.alert.component({
+        type: 'error'
+      }, errorDetail);
+      _this3.savingTagId = null;
       m.redraw();
     });
-  };
-  _proto.loadApprovedItems = function loadApprovedItems() {
-    var _this8 = this;
-    this.loadingApproved = true;
-    app.store.find('dependency-items', {
-      filter: {
-        status: 'approved'
-      },
-      sort: '-approvedAt'
-    }).then(function (items) {
-      _this8.approvedItems = items;
-      _this8.loadingApproved = false;
-      m.redraw();
-    });
-  };
+  }
+
+  // cancelEdit 方法保持不变
+  ;
+  _proto.cancelEdit = function cancelEdit() {
+    this.editingTagId = null;
+    this.editingField = null;
+    this.editValue = '';
+    this.savingTagId = null;
+    m.redraw();
+  }
+
+  // loadPluginTags 方法保持不变
+  ;
   _proto.loadPluginTags = function loadPluginTags() {
-    var _this9 = this;
+    var _this4 = this;
     this.loadingTags = true;
+    // 确保请求包含 itemCount (如果后端支持 sort=itemCount 或 include=itemCount)
+    // 否则依赖 serializer 计算
     app.store.find('dependency-tags', {
       sort: 'name'
     }).then(function (tags) {
-      _this9.pluginTags = tags;
-      _this9.loadingTags = false;
+      _this4.pluginTags = tags;
+      _this4.loadingTags = false;
+      m.redraw();
+    })["catch"](function () {
+      _this4.loadingTags = false;
       m.redraw();
     });
-  };
+  }
+
+  // deleteTag 方法保持不变
+  ;
   _proto.deleteTag = function deleteTag(tag) {
-    var _this0 = this;
+    var _this5 = this;
+    if (this.savingTagId === tag.id()) return;
     if (!confirm(app.translator.trans('shebaoting-dependency-collector.admin.confirm.delete_tag', {
       name: tag.name()
     }))) return;
     tag["delete"]().then(function () {
-      _this0.loadPluginTags();
+      _this5.pluginTags = _this5.pluginTags.filter(function (t) {
+        return t.id() !== tag.id();
+      });
       m.redraw();
     })["catch"](function (e) {
       console.error(e);
-      alert('Error deleting tag.');
+      flarum_common_utils_Alert__WEBPACK_IMPORTED_MODULE_5__.alert.component({
+        type: 'error'
+      }, 'Error deleting tag.');
     });
+  }
+
+  // getTextColorForBackground 方法保持不变
+  ;
+  _proto.getTextColorForBackground = function getTextColorForBackground(hexColor) {
+    if (!hexColor) return 'white';
+    hexColor = hexColor.replace('#', '');
+    if (hexColor.length === 3) {
+      hexColor = hexColor[0].repeat(2) + hexColor[1].repeat(2) + hexColor[2].repeat(2);
+    }
+    if (hexColor.length !== 6) {
+      return 'white';
+    }
+    var r = parseInt(hexColor.substr(0, 2), 16);
+    var g = parseInt(hexColor.substr(2, 2), 16);
+    var b = parseInt(hexColor.substr(4, 2), 16);
+    var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
   };
   return DependencyCollectorSettingsPage;
 }((flarum_admin_components_ExtensionPage__WEBPACK_IMPORTED_MODULE_1___default()));
@@ -511,8 +560,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var flarum_common_utils_string__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! flarum/common/utils/string */ "flarum/common/utils/string");
 /* harmony import */ var flarum_common_utils_string__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(flarum_common_utils_string__WEBPACK_IMPORTED_MODULE_3__);
 
+// js/src/common/models/DependencyItem.js
 
- // Not strictly needed for simple models but good to know
+
 
 var DependencyItem = /*#__PURE__*/function (_Model) {
   function DependencyItem() {
@@ -525,26 +575,26 @@ var DependencyItem = /*#__PURE__*/function (_Model) {
     _this.link = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('link');
     _this.description = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('description');
     _this.status = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('status');
+    // 确保 status 属性存在
     _this.submittedAt = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('submittedAt', (flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().transformDate));
     _this.approvedAt = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('approvedAt', (flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().transformDate));
     _this.user = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().hasOne('user');
     _this.approver = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().hasOne('approver');
     _this.tags = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().hasMany('tags');
-    // 'tags' here must match the relationship name in DependencyItemSerializer
     _this.canEdit = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canEdit');
+    // 确保 canEdit 属性存在
     _this.canApprove = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canApprove');
     return _this;
   }
   (0,_babel_runtime_helpers_esm_inheritsLoose__WEBPACK_IMPORTED_MODULE_0__["default"])(DependencyItem, _Model);
   var _proto = DependencyItem.prototype;
-  // Helper for description preview
+  // 确保 canApprove 属性存在
   _proto.shortDescription = function shortDescription(length) {
     if (length === void 0) {
       length = 100;
     }
     var desc = this.description();
     if (!desc) return '';
-    // A more sophisticated truncation might be needed (e.g. strip HTML if description can contain it)
     return (0,flarum_common_utils_string__WEBPACK_IMPORTED_MODULE_3__.getPlainContent)(desc).substring(0, length) + (desc.length > length ? '...' : '');
   };
   return DependencyItem;
@@ -682,14 +732,14 @@ module.exports = flarum.core.compat['common/components/LoadingIndicator'];
 
 /***/ }),
 
-/***/ "flarum/common/utils/ItemList":
-/*!**************************************************************!*\
-  !*** external "flarum.core.compat['common/utils/ItemList']" ***!
-  \**************************************************************/
+/***/ "flarum/common/utils/Alert":
+/*!***********************************************************!*\
+  !*** external "flarum.core.compat['common/utils/Alert']" ***!
+  \***********************************************************/
 /***/ ((module) => {
 
 "use strict";
-module.exports = flarum.core.compat['common/utils/ItemList'];
+module.exports = flarum.core.compat['common/utils/Alert'];
 
 /***/ }),
 
@@ -701,17 +751,6 @@ module.exports = flarum.core.compat['common/utils/ItemList'];
 
 "use strict";
 module.exports = flarum.core.compat['common/utils/Stream'];
-
-/***/ }),
-
-/***/ "flarum/common/utils/humanTime":
-/*!***************************************************************!*\
-  !*** external "flarum.core.compat['common/utils/humanTime']" ***!
-  \***************************************************************/
-/***/ ((module) => {
-
-"use strict";
-module.exports = flarum.core.compat['common/utils/humanTime'];
 
 /***/ }),
 
@@ -734,6 +773,17 @@ module.exports = flarum.core.compat['common/utils/mixin'];
 
 "use strict";
 module.exports = flarum.core.compat['common/utils/string'];
+
+/***/ }),
+
+/***/ "flarum/common/utils/withAttr":
+/*!**************************************************************!*\
+  !*** external "flarum.core.compat['common/utils/withAttr']" ***!
+  \**************************************************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = flarum.core.compat['common/utils/withAttr'];
 
 /***/ })
 

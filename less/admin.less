@@ -20,6 +20,57 @@
             margin-right: 5px;
         }
     }
+    .PluginTagsTable {
+        width: 100%;
+        // --- 新增：固定表格布局算法 ---
+        table-layout: fixed;
+        // --- 新增结束 ---
+
+        th, td {
+            vertical-align: middle;
+            text-align: center;
+            // --- 新增：防止内容溢出，尤其是在固定布局下 ---
+            overflow: hidden;       // 隐藏溢出内容
+            text-overflow: ellipsis; // 用省略号表示被隐藏的文本
+            white-space: nowrap;    // 防止文本换行（如果需要换行则移除此行）
+            // --- 新增结束 ---
+        }
+
+        // 保持或调整列宽设置，确保总和接近 100%
+        th:nth-child(1), td:nth-child(1) { /* Name */ width: 25%; text-align: left; }
+        th:nth-child(2), td:nth-child(2) { /* Slug */ width: 25%; text-align: left; }
+        th:nth-child(3), td:nth-child(3) { /* Color */ width: 15%; }
+        th:nth-child(4), td:nth-child(4) { /* Icon */ width: 10%; }
+        th:nth-child(5), td:nth-child(5) { /* Item Count */ width: 10%; }
+        th:nth-child(6), td:nth-child(6) { /* Actions */ width: 15%; text-align: right;}
+
+
+        td {
+            &:nth-child(1), &:nth-child(2), &:nth-child(3), &:nth-child(4) {
+                 cursor: pointer;
+            }
+
+            .FormControl--inline {
+                display: block; // 改为 block 或 inline-block 配合 100% 宽度
+                // --- 修改：让输入框充满单元格宽度 ---
+                width: 100%;
+                // --- 新增：确保 padding 和 border 包含在宽度内 ---
+                box-sizing: border-box;
+                // --- 修改结束 ---
+                padding: 2px 6px;
+                height: auto;
+                line-height: inherit;
+                font-size: inherit;
+                // 移除 min-width，因为它可能导致列被撑开
+                // min-width: 80px;
+                text-align: left;
+            }
+        }
+        tr.saving td {
+           opacity: 0.5;
+           pointer-events: none;
+        }
+    }
 }
 
 .EditTagModal {
