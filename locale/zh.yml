@@ -1,24 +1,24 @@
 shebaoting-dependency-collector:
   forum:
-    nav_title: 依赖项中心 # 论坛导航栏链接文本
+    nav_title: 产品中心 # 论坛导航栏链接文本
     list:
-      submit_button: 提交依赖项 # 依赖项列表页的“提交”按钮
+      submit_button: 提交产品 # 产品列表页的“提交”按钮
       filter_by_tag: 按标签筛选 # 筛选区域标题
       all_tags: 全部标签 # “全部标签”筛选选项
-      empty_text: 暂无依赖项。 # 列表为空时的提示文本
+      empty_text: 暂无产品。 # 列表为空时的提示文本
     item:
-      pending_approval: 审核中 # 依赖项卡片上“待审核”状态的徽章
+      pending_approval: 审核中 # 产品卡片上“待审核”状态的徽章
       delete_button_label: 删除 # 删除按钮的 aria-label
-      delete_confirmation_title: 删除依赖项 # 删除确认弹窗标题
-      delete_confirmation_text: 您确定要删除此依赖项吗？此操作无法撤销。 # 删除确认弹窗内容
+      delete_confirmation_title: 删除产品 # 删除确认弹窗标题
+      delete_confirmation_text: 您确定要删除此产品吗？此操作无法撤销。 # 删除确认弹窗内容
     modal:
-      submit_title: 提交新的依赖项 # 提交依赖项弹窗的标题
+      submit_title: 提交新的产品 # 提交产品弹窗的标题
       title_label: 标题 # 标题输入框的标签
       title_placeholder: 例如：很棒的库 # 标题输入框的占位符
       link_label: 链接 # 链接输入框的标签
       link_placeholder: https://example.com # 链接输入框的占位符
       description_label: 简介 # 简介文本区域的标签
-      description_placeholder: 关于此依赖项功能的简短描述。 # 简介文本区域的占位符
+      description_placeholder: 关于此产品功能的简短描述。 # 简介文本区域的占位符
       tags_label: 插件标签 # 插件标签选择区域的标签
       tags_help: 请至少选择一个相关的标签 # 插件标签选择的帮助文本
       submit_button: 提交 # 弹窗中的提交按钮
@@ -26,12 +26,12 @@ shebaoting-dependency-collector:
   admin:
     nav:
       title: 依赖收集器 # 后台导航栏中插件的名称
-      description: 管理已提交的依赖项和插件自定义标签。 # 后台插件页面的描述
+      description: 管理已提交的产品和插件自定义标签。 # 后台插件页面的描述
     page:
-      pending_items_title: 待审核的依赖项 # “待审核列表”区域的标题
-      no_pending_items: 当前没有等待审核的依赖项。 # “待审核列表”为空时的提示
-      approved_items_title: 已批准的依赖项 # “已批准列表”区域的标题
-      no_approved_items: 目前还没有已批准的依赖项。 # “已批准列表”为空时的提示
+      pending_items_title: 待审核的产品 # “待审核列表”区域的标题
+      no_pending_items: 当前没有等待审核的产品。 # “待审核列表”为空时的提示
+      approved_items_title: 已批准的产品 # “已批准列表”区域的标题
+      no_approved_items: 目前还没有已批准的产品。 # “已批准列表”为空时的提示
       manage_tags_title: 管理插件标签 # “管理插件标签”区域的标题
       no_plugin_tags: 尚未创建任何插件标签。 # “插件标签列表”为空时的提示
     table:
@@ -54,10 +54,10 @@ shebaoting-dependency-collector:
       reject: 拒绝 # “拒绝”按钮文本
       delete_button: 删除
     confirm:
-      approve: 确定要批准依赖项 # 批准确认提示
-      reject: 确定要拒绝依赖项 # 拒绝确认提示
-      delete: 确定要删除依赖项 # 删除依赖项确认提示
-      delete_tag: 您确定要删除标签 "{name}" 吗？这将从所有关联的依赖项中移除此标签。 # 删除标签确认提示，{name} 是占位符
+      approve: 确定要批准产品 # 批准确认提示
+      reject: 确定要拒绝产品 # 拒绝确认提示
+      delete: 确定要删除产品 # 删除产品确认提示
+      delete_tag: 您确定要删除标签 "{name}" 吗？这将从所有关联的产品中移除此标签。 # 删除标签确认提示，{name} 是占位符
     modal:
       edit_tag_title: 编辑标签 - {name} # 编辑标签弹窗标题
       create_tag_title: 创建新标签 # 创建标签弹窗标题
@@ -68,7 +68,7 @@ shebaoting-dependency-collector:
       tag_icon_label: 图标 (例如：fas fa-code)
       tag_icon_help: 在 <a>Font Awesome</a> 上查找图标。 # 图标帮助文本，<a> 是用于链接的特殊标记
     permissions: # 后台权限设置页面的权限描述
-      submit_label: 提交依赖项
-      moderate_label: 管理依赖项 (批准、拒绝、编辑、删除)
+      submit_label: 提交产品
+      moderate_label: 管理产品 (批准、拒绝、编辑、删除)
       manage_tags_label: 管理插件标签
-      delete_label: 删除依赖项
+      delete_label: 删除产品
