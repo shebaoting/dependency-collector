@@ -55,16 +55,15 @@ return [
     // (new Extend\View())
     //    ->namespace('dependency-collector.admin.permissions', __DIR__ . '/views/admin/permissions'),
 
-    // 默认权限授予
-    // (new Extend\Permissions())
-    //     ->grant('dependency-collector.submit', Group::MEMBER_ID) // 默认允许“成员”用户组提交依赖项
-    //     ->grant('dependency-collector.moderate', Group::MODERATOR_ID) // 默认允许“版主”审核
-    //     ->grant('dependency-collector.moderate', Group::ADMINISTRATOR_ID) // 默认允许“管理员”审核
-    //     ->grant('dependency-collector.manageTags', Group::ADMINISTRATOR_ID), // 默认只允许“管理员”管理插件标签
-
-    // 将 canSubmitDependencyCollectorItem 权限暴露给论坛前端
+    // 将 canSubmit 和 canDelete 权限暴露给论坛前端
     (new Extend\ApiSerializer(ForumSerializer::class))
         ->attribute('canSubmitDependencyCollectorItem', function ($serializer, $model, $attributes) {
             return $serializer->getActor()->hasPermission('dependency-collector.submit');
-        }),
+        })
+        // --- 新增 canDelete 权限暴露 ---
+        // 注意：这个 canDelete 是全局的，表示用户 *通常* 能不能删除，具体到某一项能不能删由下面的 Serializer 控制
+        // 如果没有全局删除权限的需求，可以不暴露这个全局权限
+        ->attribute('canDeleteDependencyCollectorItem', function ($serializer, $model, $attributes) {
+            return $serializer->getActor()->hasPermission('dependency-collector.delete');
+        })
 ];

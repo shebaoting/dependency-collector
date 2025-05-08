@@ -36,5 +36,4 @@ app.initializers.add('shebaoting-dependency-collector-admin', () => {
       },
       'moderate' // Or a new group like 'manage'
     );
-  // Add more permissions as needed
 });

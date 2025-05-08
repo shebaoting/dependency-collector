@@ -156,985 +156,6 @@ return [
 ];
 ```
 
-### 文件路径: `.git\config`
-
-```text
-[core]
-	repositoryformatversion = 0
-	filemode = false
-	bare = false
-	logallrefupdates = true
-	symlinks = false
-	ignorecase = true
-```
-
-### 文件路径: `.git\description`
-
-```text
-Unnamed repository; edit this file 'description' to name the repository.
-```
-
-### 文件路径: `.git\FETCH_HEAD`
-
-```text
-
-```
-
-### 文件路径: `.git\HEAD`
-
-```text
-ref: refs/heads/master
-```
-
-### 文件路径: `.git\hooks\applypatch-msg.sample`
-
-```text
-#!/bin/sh
-#
-# An example hook script to check the commit log message taken by
-# applypatch from an e-mail message.
-#
-# The hook should exit with non-zero status after issuing an
-# appropriate message if it wants to stop the commit.  The hook is
-# allowed to edit the commit message file.
-#
-# To enable this hook, rename this file to "applypatch-msg".
-
-. git-sh-setup
-commitmsg="$(git rev-parse --git-path hooks/commit-msg)"
-test -x "$commitmsg" && exec "$commitmsg" ${1+"$@"}
-:
-```
-
-### 文件路径: `.git\hooks\commit-msg.sample`
-
-```text
-#!/bin/sh
-#
-# An example hook script to check the commit log message.
-# Called by "git commit" with one argument, the name of the file
-# that has the commit message.  The hook should exit with non-zero
-# status after issuing an appropriate message if it wants to stop the
-# commit.  The hook is allowed to edit the commit message file.
-#
-# To enable this hook, rename this file to "commit-msg".
-
-# Uncomment the below to add a Signed-off-by line to the message.
-# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
-# hook is more suited to it.
-#
-# SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
-# grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"
-
-# This example catches duplicate Signed-off-by lines.
-
-test "" = "$(grep '^Signed-off-by: ' "$1" |
-	 sort | uniq -c | sed -e '/^[ 	]*1[ 	]/d')" || {
-	echo >&2 Duplicate Signed-off-by lines.
-	exit 1
-}
-```
-
-### 文件路径: `.git\hooks\fsmonitor-watchman.sample`
-
-```text
-#!/usr/bin/perl
-
-use strict;
-use warnings;
-use IPC::Open2;
-
-# An example hook script to integrate Watchman
-# (https://facebook.github.io/watchman/) with git to speed up detecting
-# new and modified files.
-#
-# The hook is passed a version (currently 2) and last update token
-# formatted as a string and outputs to stdout a new update token and
-# all files that have been modified since the update token. Paths must
-# be relative to the root of the working tree and separated by a single NUL.
-#
-# To enable this hook, rename this file to "query-watchman" and set
-# 'git config core.fsmonitor .git/hooks/query-watchman'
-#
-my ($version, $last_update_token) = @ARGV;
-
-# Uncomment for debugging
-# print STDERR "$0 $version $last_update_token\n";
-
-# Check the hook interface version
-if ($version ne 2) {
-	die "Unsupported query-fsmonitor hook version '$version'.\n" .
-	    "Falling back to scanning...\n";
-}
-
-my $git_work_tree = get_working_dir();
-
-my $retry = 1;
-
-my $json_pkg;
-eval {
-	require JSON::XS;
-	$json_pkg = "JSON::XS";
-	1;
-} or do {
-	require JSON::PP;
-	$json_pkg = "JSON::PP";
-};
-
-launch_watchman();
-
-sub launch_watchman {
-	my $o = watchman_query();
-	if (is_work_tree_watched($o)) {
-		output_result($o->{clock}, @{$o->{files}});
-	}
-}
-
-sub output_result {
-	my ($clockid, @files) = @_;
-
-	# Uncomment for debugging watchman output
-	# open (my $fh, ">", ".git/watchman-output.out");
-	# binmode $fh, ":utf8";
-	# print $fh "$clockid\n@files\n";
-	# close $fh;
-
-	binmode STDOUT, ":utf8";
-	print $clockid;
-	print "\0";
-	local $, = "\0";
-	print @files;
-}
-
-sub watchman_clock {
-	my $response = qx/watchman clock "$git_work_tree"/;
-	die "Failed to get clock id on '$git_work_tree'.\n" .
-		"Falling back to scanning...\n" if $? != 0;
-
-	return $json_pkg->new->utf8->decode($response);
-}
-
-sub watchman_query {
-	my $pid = open2(\*CHLD_OUT, \*CHLD_IN, 'watchman -j --no-pretty')
-	or die "open2() failed: $!\n" .
-	"Falling back to scanning...\n";
-
-	# In the query expression below we're asking for names of files that
-	# changed since $last_update_token but not from the .git folder.
-	#
-	# To accomplish this, we're using the "since" generator to use the
-	# recency index to select candidate nodes and "fields" to limit the
-	# output to file names only. Then we're using the "expression" term to
-	# further constrain the results.
-	my $last_update_line = "";
-	if (substr($last_update_token, 0, 1) eq "c") {
-		$last_update_token = "\"$last_update_token\"";
-		$last_update_line = qq[\n"since": $last_update_token,];
-	}
-	my $query = <<"	END";
-		["query", "$git_work_tree", {$last_update_line
-			"fields": ["name"],
-			"expression": ["not", ["dirname", ".git"]]
-		}]
-	END
-
-	# Uncomment for debugging the watchman query
-	# open (my $fh, ">", ".git/watchman-query.json");
-	# print $fh $query;
-	# close $fh;
-
-	print CHLD_IN $query;
-	close CHLD_IN;
-	my $response = do {local $/; <CHLD_OUT>};
-
-	# Uncomment for debugging the watch response
-	# open ($fh, ">", ".git/watchman-response.json");
-	# print $fh $response;
-	# close $fh;
-
-	die "Watchman: command returned no output.\n" .
-	"Falling back to scanning...\n" if $response eq "";
-	die "Watchman: command returned invalid output: $response\n" .
-	"Falling back to scanning...\n" unless $response =~ /^\{/;
-
-	return $json_pkg->new->utf8->decode($response);
-}
-
-sub is_work_tree_watched {
-	my ($output) = @_;
-	my $error = $output->{error};
-	if ($retry > 0 and $error and $error =~ m/unable to resolve root .* directory (.*) is not watched/) {
-		$retry--;
-		my $response = qx/watchman watch "$git_work_tree"/;
-		die "Failed to make watchman watch '$git_work_tree'.\n" .
-		    "Falling back to scanning...\n" if $? != 0;
-		$output = $json_pkg->new->utf8->decode($response);
-		$error = $output->{error};
-		die "Watchman: $error.\n" .
-		"Falling back to scanning...\n" if $error;
-
-		# Uncomment for debugging watchman output
-		# open (my $fh, ">", ".git/watchman-output.out");
-		# close $fh;
-
-		# Watchman will always return all files on the first query so
-		# return the fast "everything is dirty" flag to git and do the
-		# Watchman query just to get it over with now so we won't pay
-		# the cost in git to look up each individual file.
-		my $o = watchman_clock();
-		$error = $output->{error};
-
-		die "Watchman: $error.\n" .
-		"Falling back to scanning...\n" if $error;
-
-		output_result($o->{clock}, ("/"));
-		$last_update_token = $o->{clock};
-
-		eval { launch_watchman() };
-		return 0;
-	}
-
-	die "Watchman: $error.\n" .
-	"Falling back to scanning...\n" if $error;
-
-	return 1;
-}
-
-sub get_working_dir {
-	my $working_dir;
-	if ($^O =~ 'msys' || $^O =~ 'cygwin') {
-		$working_dir = Win32::GetCwd();
-		$working_dir =~ tr/\\/\//;
-	} else {
-		require Cwd;
-		$working_dir = Cwd::cwd();
-	}
-
-	return $working_dir;
-}
-```
-
-### 文件路径: `.git\hooks\post-update.sample`
-
-```text
-#!/bin/sh
-#
-# An example hook script to prepare a packed repository for use over
-# dumb transports.
-#
-# To enable this hook, rename this file to "post-update".
-
-exec git update-server-info
-```
-
-### 文件路径: `.git\hooks\pre-applypatch.sample`
-
-```text
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed
-# by applypatch from an e-mail message.
-#
-# The hook should exit with non-zero status after issuing an
-# appropriate message if it wants to stop the commit.
-#
-# To enable this hook, rename this file to "pre-applypatch".
-
-. git-sh-setup
-precommit="$(git rev-parse --git-path hooks/pre-commit)"
-test -x "$precommit" && exec "$precommit" ${1+"$@"}
-:
-```
-
-### 文件路径: `.git\hooks\pre-commit.sample`
-
-```text
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed.
-# Called by "git commit" with no arguments.  The hook should
-# exit with non-zero status after issuing an appropriate message if
-# it wants to stop the commit.
-#
-# To enable this hook, rename this file to "pre-commit".
-
-if git rev-parse --verify HEAD >/dev/null 2>&1
-then
-	against=HEAD
-else
-	# Initial commit: diff against an empty tree object
-	against=$(git hash-object -t tree /dev/null)
-fi
-
-# If you want to allow non-ASCII filenames set this variable to true.
-allownonascii=$(git config --type=bool hooks.allownonascii)
-
-# Redirect output to stderr.
-exec 1>&2
-
-# Cross platform projects tend to avoid non-ASCII filenames; prevent
-# them from being added to the repository. We exploit the fact that the
-# printable range starts at the space character and ends with tilde.
-if [ "$allownonascii" != "true" ] &&
-	# Note that the use of brackets around a tr range is ok here, (it's
-	# even required, for portability to Solaris 10's /usr/bin/tr), since
-	# the square bracket bytes happen to fall in the designated range.
-	test $(git diff-index --cached --name-only --diff-filter=A -z $against |
-	  LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
-then
-	cat <<\EOF
-Error: Attempt to add a non-ASCII file name.
-
-This can cause problems if you want to work with people on other platforms.
-
-To be portable it is advisable to rename the file.
-
-If you know what you are doing you can disable this check using:
-
-  git config hooks.allownonascii true
-EOF
-	exit 1
-fi
-
-# If there are whitespace errors, print the offending file names and fail.
-exec git diff-index --check --cached $against --
-```
-
-### 文件路径: `.git\hooks\pre-merge-commit.sample`
-
-```text
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed.
-# Called by "git merge" with no arguments.  The hook should
-# exit with non-zero status after issuing an appropriate message to
-# stderr if it wants to stop the merge commit.
-#
-# To enable this hook, rename this file to "pre-merge-commit".
-
-. git-sh-setup
-test -x "$GIT_DIR/hooks/pre-commit" &&
-        exec "$GIT_DIR/hooks/pre-commit"
-:
-```
-
-### 文件路径: `.git\hooks\pre-push.sample`
-
-```text
-#!/bin/sh
-
-# An example hook script to verify what is about to be pushed.  Called by "git
-# push" after it has checked the remote status, but before anything has been
-# pushed.  If this script exits with a non-zero status nothing will be pushed.
-#
-# This hook is called with the following parameters:
-#
-# $1 -- Name of the remote to which the push is being done
-# $2 -- URL to which the push is being done
-#
-# If pushing without using a named remote those arguments will be equal.
-#
-# Information about the commits which are being pushed is supplied as lines to
-# the standard input in the form:
-#
-#   <local ref> <local oid> <remote ref> <remote oid>
-#
-# This sample shows how to prevent push of commits where the log message starts
-# with "WIP" (work in progress).
-
-remote="$1"
-url="$2"
-
-zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
-
-while read local_ref local_oid remote_ref remote_oid
-do
-	if test "$local_oid" = "$zero"
-	then
-		# Handle delete
-		:
-	else
-		if test "$remote_oid" = "$zero"
-		then
-			# New branch, examine all commits
-			range="$local_oid"
-		else
-			# Update to existing branch, examine new commits
-			range="$remote_oid..$local_oid"
-		fi
-
-		# Check for WIP commit
-		commit=$(git rev-list -n 1 --grep '^WIP' "$range")
-		if test -n "$commit"
-		then
-			echo >&2 "Found WIP commit in $local_ref, not pushing"
-			exit 1
-		fi
-	fi
-done
-
-exit 0
-```
-
-### 文件路径: `.git\hooks\pre-rebase.sample`
-
-```text
-#!/bin/sh
-#
-# Copyright (c) 2006, 2008 Junio C Hamano
-#
-# The "pre-rebase" hook is run just before "git rebase" starts doing
-# its job, and can prevent the command from running by exiting with
-# non-zero status.
-#
-# The hook is called with the following parameters:
-#
-# $1 -- the upstream the series was forked from.
-# $2 -- the branch being rebased (or empty when rebasing the current branch).
-#
-# This sample shows how to prevent topic branches that are already
-# merged to 'next' branch from getting rebased, because allowing it
-# would result in rebasing already published history.
-
-publish=next
-basebranch="$1"
-if test "$#" = 2
-then
-	topic="refs/heads/$2"
-else
-	topic=`git symbolic-ref HEAD` ||
-	exit 0 ;# we do not interrupt rebasing detached HEAD
-fi
-
-case "$topic" in
-refs/heads/??/*)
-	;;
-*)
-	exit 0 ;# we do not interrupt others.
-	;;
-esac
-
-# Now we are dealing with a topic branch being rebased
-# on top of master.  Is it OK to rebase it?
-
-# Does the topic really exist?
-git show-ref -q "$topic" || {
-	echo >&2 "No such branch $topic"
-	exit 1
-}
-
-# Is topic fully merged to master?
-not_in_master=`git rev-list --pretty=oneline ^master "$topic"`
-if test -z "$not_in_master"
-then
-	echo >&2 "$topic is fully merged to master; better remove it."
-	exit 1 ;# we could allow it, but there is no point.
-fi
-
-# Is topic ever merged to next?  If so you should not be rebasing it.
-only_next_1=`git rev-list ^master "^$topic" ${publish} | sort`
-only_next_2=`git rev-list ^master           ${publish} | sort`
-if test "$only_next_1" = "$only_next_2"
-then
-	not_in_topic=`git rev-list "^$topic" master`
-	if test -z "$not_in_topic"
-	then
-		echo >&2 "$topic is already up to date with master"
-		exit 1 ;# we could allow it, but there is no point.
-	else
-		exit 0
-	fi
-else
-	not_in_next=`git rev-list --pretty=oneline ^${publish} "$topic"`
-	/usr/bin/perl -e '
-		my $topic = $ARGV[0];
-		my $msg = "* $topic has commits already merged to public branch:\n";
-		my (%not_in_next) = map {
-			/^([0-9a-f]+) /;
-			($1 => 1);
-		} split(/\n/, $ARGV[1]);
-		for my $elem (map {
-				/^([0-9a-f]+) (.*)$/;
-				[$1 => $2];
-			} split(/\n/, $ARGV[2])) {
-			if (!exists $not_in_next{$elem->[0]}) {
-				if ($msg) {
-					print STDERR $msg;
-					undef $msg;
-				}
-				print STDERR " $elem->[1]\n";
-			}
-		}
-	' "$topic" "$not_in_next" "$not_in_master"
-	exit 1
-fi
-
-<<\DOC_END
-
-This sample hook safeguards topic branches that have been
-published from being rewound.
-
-The workflow assumed here is:
-
- * Once a topic branch forks from "master", "master" is never
-   merged into it again (either directly or indirectly).
-
- * Once a topic branch is fully cooked and merged into "master",
-   it is deleted.  If you need to build on top of it to correct
-   earlier mistakes, a new topic branch is created by forking at
-   the tip of the "master".  This is not strictly necessary, but
-   it makes it easier to keep your history simple.
-
- * Whenever you need to test or publish your changes to topic
-   branches, merge them into "next" branch.
-
-The script, being an example, hardcodes the publish branch name
-to be "next", but it is trivial to make it configurable via
-$GIT_DIR/config mechanism.
-
-With this workflow, you would want to know:
-
-(1) ... if a topic branch has ever been merged to "next".  Young
-    topic branches can have stupid mistakes you would rather
-    clean up before publishing, and things that have not been
-    merged into other branches can be easily rebased without
-    affecting other people.  But once it is published, you would
-    not want to rewind it.
-
-(2) ... if a topic branch has been fully merged to "master".
-    Then you can delete it.  More importantly, you should not
-    build on top of it -- other people may already want to
-    change things related to the topic as patches against your
-    "master", so if you need further changes, it is better to
-    fork the topic (perhaps with the same name) afresh from the
-    tip of "master".
-
-Let's look at this example:
-
-		   o---o---o---o---o---o---o---o---o---o "next"
-		  /       /           /           /
-		 /   a---a---b A     /           /
-		/   /               /           /
-	       /   /   c---c---c---c B         /
-	      /   /   /             \         /
-	     /   /   /   b---b C     \       /
-	    /   /   /   /             \     /
-    ---o---o---o---o---o---o---o---o---o---o---o "master"
-
-
-A, B and C are topic branches.
-
- * A has one fix since it was merged up to "next".
-
- * B has finished.  It has been fully merged up to "master" and "next",
-   and is ready to be deleted.
-
- * C has not merged to "next" at all.
-
-We would want to allow C to be rebased, refuse A, and encourage
-B to be deleted.
-
-To compute (1):
-
-	git rev-list ^master ^topic next
-	git rev-list ^master        next
-
-	if these match, topic has not merged in next at all.
-
-To compute (2):
-
-	git rev-list master..topic
-
-	if this is empty, it is fully merged to "master".
-
-DOC_END
-```
-
-### 文件路径: `.git\hooks\pre-receive.sample`
-
-```text
-#!/bin/sh
-#
-# An example hook script to make use of push options.
-# The example simply echoes all push options that start with 'echoback='
-# and rejects all pushes when the "reject" push option is used.
-#
-# To enable this hook, rename this file to "pre-receive".
-
-if test -n "$GIT_PUSH_OPTION_COUNT"
-then
-	i=0
-	while test "$i" -lt "$GIT_PUSH_OPTION_COUNT"
-	do
-		eval "value=\$GIT_PUSH_OPTION_$i"
-		case "$value" in
-		echoback=*)
-			echo "echo from the pre-receive-hook: ${value#*=}" >&2
-			;;
-		reject)
-			exit 1
-		esac
-		i=$((i + 1))
-	done
-fi
-```
-
-### 文件路径: `.git\hooks\prepare-commit-msg.sample`
-
-```text
-#!/bin/sh
-#
-# An example hook script to prepare the commit log message.
-# Called by "git commit" with the name of the file that has the
-# commit message, followed by the description of the commit
-# message's source.  The hook's purpose is to edit the commit
-# message file.  If the hook fails with a non-zero status,
-# the commit is aborted.
-#
-# To enable this hook, rename this file to "prepare-commit-msg".
-
-# This hook includes three examples. The first one removes the
-# "# Please enter the commit message..." help message.
-#
-# The second includes the output of "git diff --name-status -r"
-# into the message, just before the "git status" output.  It is
-# commented because it doesn't cope with --amend or with squashed
-# commits.
-#
-# The third example adds a Signed-off-by line to the message, that can
-# still be edited.  This is rarely a good idea.
-
-COMMIT_MSG_FILE=$1
-COMMIT_SOURCE=$2
-SHA1=$3
-
-/usr/bin/perl -i.bak -ne 'print unless(m/^. Please enter the commit message/..m/^#$/)' "$COMMIT_MSG_FILE"
-
-# case "$COMMIT_SOURCE,$SHA1" in
-#  ,|template,)
-#    /usr/bin/perl -i.bak -pe '
-#       print "\n" . `git diff --cached --name-status -r`
-# 	 if /^#/ && $first++ == 0' "$COMMIT_MSG_FILE" ;;
-#  *) ;;
-# esac
-
-# SOB=$(git var GIT_COMMITTER_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
-# git interpret-trailers --in-place --trailer "$SOB" "$COMMIT_MSG_FILE"
-# if test -z "$COMMIT_SOURCE"
-# then
-#   /usr/bin/perl -i.bak -pe 'print "\n" if !$first_line++' "$COMMIT_MSG_FILE"
-# fi
-```
-
-### 文件路径: `.git\hooks\push-to-checkout.sample`
-
-```text
-#!/bin/sh
-
-# An example hook script to update a checked-out tree on a git push.
-#
-# This hook is invoked by git-receive-pack(1) when it reacts to git
-# push and updates reference(s) in its repository, and when the push
-# tries to update the branch that is currently checked out and the
-# receive.denyCurrentBranch configuration variable is set to
-# updateInstead.
-#
-# By default, such a push is refused if the working tree and the index
-# of the remote repository has any difference from the currently
-# checked out commit; when both the working tree and the index match
-# the current commit, they are updated to match the newly pushed tip
-# of the branch. This hook is to be used to override the default
-# behaviour; however the code below reimplements the default behaviour
-# as a starting point for convenient modification.
-#
-# The hook receives the commit with which the tip of the current
-# branch is going to be updated:
-commit=$1
-
-# It can exit with a non-zero status to refuse the push (when it does
-# so, it must not modify the index or the working tree).
-die () {
-	echo >&2 "$*"
-	exit 1
-}
-
-# Or it can make any necessary changes to the working tree and to the
-# index to bring them to the desired state when the tip of the current
-# branch is updated to the new commit, and exit with a zero status.
-#
-# For example, the hook can simply run git read-tree -u -m HEAD "$1"
-# in order to emulate git fetch that is run in the reverse direction
-# with git push, as the two-tree form of git read-tree -u -m is
-# essentially the same as git switch or git checkout that switches
-# branches while keeping the local changes in the working tree that do
-# not interfere with the difference between the branches.
-
-# The below is a more-or-less exact translation to shell of the C code
-# for the default behaviour for git's push-to-checkout hook defined in
-# the push_to_deploy() function in builtin/receive-pack.c.
-#
-# Note that the hook will be executed from the repository directory,
-# not from the working tree, so if you want to perform operations on
-# the working tree, you will have to adapt your code accordingly, e.g.
-# by adding "cd .." or using relative paths.
-
-if ! git update-index -q --ignore-submodules --refresh
-then
-	die "Up-to-date check failed"
-fi
-
-if ! git diff-files --quiet --ignore-submodules --
-then
-	die "Working directory has unstaged changes"
-fi
-
-# This is a rough translation of:
-#
-#   head_has_history() ? "HEAD" : EMPTY_TREE_SHA1_HEX
-if git cat-file -e HEAD 2>/dev/null
-then
-	head=HEAD
-else
-	head=$(git hash-object -t tree --stdin </dev/null)
-fi
-
-if ! git diff-index --quiet --cached --ignore-submodules $head --
-then
-	die "Working directory has staged changes"
-fi
-
-if ! git read-tree -u -m "$commit"
-then
-	die "Could not update working tree to new HEAD"
-fi
-```
-
-### 文件路径: `.git\hooks\sendemail-validate.sample`
-
-```text
-#!/bin/sh
-
-# An example hook script to validate a patch (and/or patch series) before
-# sending it via email.
-#
-# The hook should exit with non-zero status after issuing an appropriate
-# message if it wants to prevent the email(s) from being sent.
-#
-# To enable this hook, rename this file to "sendemail-validate".
-#
-# By default, it will only check that the patch(es) can be applied on top of
-# the default upstream branch without conflicts in a secondary worktree. After
-# validation (successful or not) of the last patch of a series, the worktree
-# will be deleted.
-#
-# The following config variables can be set to change the default remote and
-# remote ref that are used to apply the patches against:
-#
-#   sendemail.validateRemote (default: origin)
-#   sendemail.validateRemoteRef (default: HEAD)
-#
-# Replace the TODO placeholders with appropriate checks according to your
-# needs.
-
-validate_cover_letter () {
-	file="$1"
-	# TODO: Replace with appropriate checks (e.g. spell checking).
-	true
-}
-
-validate_patch () {
-	file="$1"
-	# Ensure that the patch applies without conflicts.
-	git am -3 "$file" || return
-	# TODO: Replace with appropriate checks for this patch
-	# (e.g. checkpatch.pl).
-	true
-}
-
-validate_series () {
-	# TODO: Replace with appropriate checks for the whole series
-	# (e.g. quick build, coding style checks, etc.).
-	true
-}
-
-# main -------------------------------------------------------------------------
-
-if test "$GIT_SENDEMAIL_FILE_COUNTER" = 1
-then
-	remote=$(git config --default origin --get sendemail.validateRemote) &&
-	ref=$(git config --default HEAD --get sendemail.validateRemoteRef) &&
-	worktree=$(mktemp --tmpdir -d sendemail-validate.XXXXXXX) &&
-	git worktree add -fd --checkout "$worktree" "refs/remotes/$remote/$ref" &&
-	git config --replace-all sendemail.validateWorktree "$worktree"
-else
-	worktree=$(git config --get sendemail.validateWorktree)
-fi || {
-	echo "sendemail-validate: error: failed to prepare worktree" >&2
-	exit 1
-}
-
-unset GIT_DIR GIT_WORK_TREE
-cd "$worktree" &&
-
-if grep -q "^diff --git " "$1"
-then
-	validate_patch "$1"
-else
-	validate_cover_letter "$1"
-fi &&
-
-if test "$GIT_SENDEMAIL_FILE_COUNTER" = "$GIT_SENDEMAIL_FILE_TOTAL"
-then
-	git config --unset-all sendemail.validateWorktree &&
-	trap 'git worktree remove -ff "$worktree"' EXIT &&
-	validate_series
-fi
-```
-
-### 文件路径: `.git\hooks\update.sample`
-
-```text
-#!/bin/sh
-#
-# An example hook script to block unannotated tags from entering.
-# Called by "git receive-pack" with arguments: refname sha1-old sha1-new
-#
-# To enable this hook, rename this file to "update".
-#
-# Config
-# ------
-# hooks.allowunannotated
-#   This boolean sets whether unannotated tags will be allowed into the
-#   repository.  By default they won't be.
-# hooks.allowdeletetag
-#   This boolean sets whether deleting tags will be allowed in the
-#   repository.  By default they won't be.
-# hooks.allowmodifytag
-#   This boolean sets whether a tag may be modified after creation. By default
-#   it won't be.
-# hooks.allowdeletebranch
-#   This boolean sets whether deleting branches will be allowed in the
-#   repository.  By default they won't be.
-# hooks.denycreatebranch
-#   This boolean sets whether remotely creating branches will be denied
-#   in the repository.  By default this is allowed.
-#
-
-# --- Command line
-refname="$1"
-oldrev="$2"
-newrev="$3"
-
-# --- Safety check
-if [ -z "$GIT_DIR" ]; then
-	echo "Don't run this script from the command line." >&2
-	echo " (if you want, you could supply GIT_DIR then run" >&2
-	echo "  $0 <ref> <oldrev> <newrev>)" >&2
-	exit 1
-fi
-
-if [ -z "$refname" -o -z "$oldrev" -o -z "$newrev" ]; then
-	echo "usage: $0 <ref> <oldrev> <newrev>" >&2
-	exit 1
-fi
-
-# --- Config
-allowunannotated=$(git config --type=bool hooks.allowunannotated)
-allowdeletebranch=$(git config --type=bool hooks.allowdeletebranch)
-denycreatebranch=$(git config --type=bool hooks.denycreatebranch)
-allowdeletetag=$(git config --type=bool hooks.allowdeletetag)
-allowmodifytag=$(git config --type=bool hooks.allowmodifytag)
-
-# check for no description
-projectdesc=$(sed -e '1q' "$GIT_DIR/description")
-case "$projectdesc" in
-"Unnamed repository"* | "")
-	echo "*** Project description file hasn't been set" >&2
-	exit 1
-	;;
-esac
-
-# --- Check types
-# if $newrev is 0000...0000, it's a commit to delete a ref.
-zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
-if [ "$newrev" = "$zero" ]; then
-	newrev_type=delete
-else
-	newrev_type=$(git cat-file -t $newrev)
-fi
-
-case "$refname","$newrev_type" in
-	refs/tags/*,commit)
-		# un-annotated tag
-		short_refname=${refname##refs/tags/}
-		if [ "$allowunannotated" != "true" ]; then
-			echo "*** The un-annotated tag, $short_refname, is not allowed in this repository" >&2
-			echo "*** Use 'git tag [ -a | -s ]' for tags you want to propagate." >&2
-			exit 1
-		fi
-		;;
-	refs/tags/*,delete)
-		# delete tag
-		if [ "$allowdeletetag" != "true" ]; then
-			echo "*** Deleting a tag is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/tags/*,tag)
-		# annotated tag
-		if [ "$allowmodifytag" != "true" ] && git rev-parse $refname > /dev/null 2>&1
-		then
-			echo "*** Tag '$refname' already exists." >&2
-			echo "*** Modifying a tag is not allowed in this repository." >&2
-			exit 1
-		fi
-		;;
-	refs/heads/*,commit)
-		# branch
-		if [ "$oldrev" = "$zero" -a "$denycreatebranch" = "true" ]; then
-			echo "*** Creating a branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/heads/*,delete)
-		# delete branch
-		if [ "$allowdeletebranch" != "true" ]; then
-			echo "*** Deleting a branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/remotes/*,commit)
-		# tracking branch
-		;;
-	refs/remotes/*,delete)
-		# delete tracking branch
-		if [ "$allowdeletebranch" != "true" ]; then
-			echo "*** Deleting a tracking branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	*)
-		# Anything else (is there anything else?)
-		echo "*** Update hook: unknown type of update to ref $refname of type $newrev_type" >&2
-		exit 1
-		;;
-esac
-
-# --- Finished
-exit 0
-```
-
-### 文件路径: `.git\info\exclude`
-
-```text
-# git ls-files --others --exclude-from=.git/info/exclude
-# Lines that start with '#' are comments.
-# For a project mostly in C, the following would be a good set of
-# exclude patterns (uncomment them if you want to use them):
-# *.[oa]
-# *~
-```
-
 ### 文件路径: `js\admin.ts`
 
 ```typescript
@@ -1231,207 +252,48 @@ app.initializers.add('shebaoting-dependency-collector-admin', () => {
 ### 文件路径: `js\src\admin\components\DependencyCollectorSettingsPage.js`
 
 ```javascript
+// js/src/admin/components/DependencyCollectorSettingsPage.js
+
 import ExtensionPage from 'flarum/admin/components/ExtensionPage';
 import Button from 'flarum/common/components/Button';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
-import EditTagModal from './EditTagModal'; // We'll create this
-import ItemList from 'flarum/common/utils/ItemList';
-import humanTime from 'flarum/common/utils/humanTime';
+import EditTagModal from './EditTagModal';
+import { alert } from 'flarum/common/utils/Alert';
+import withAttr from 'flarum/common/utils/withAttr';
 
 export default class DependencyCollectorSettingsPage extends ExtensionPage {
   oninit(vnode) {
     super.oninit(vnode);
-    this.loadingPending = true;
-    this.loadingApproved = true;
     this.loadingTags = true;
-
-    this.pendingItems = [];
-    this.approvedItems = [];
     this.pluginTags = [];
-
-    this.loadPendingItems();
-    this.loadApprovedItems();
     this.loadPluginTags();
+    this.editingTagId = null;
+    this.editingField = null;
+    this.editValue = '';
+    this.savingTagId = null;
   }
 
   content() {
     return (
       <div className="DependencyCollectorSettingsPage">
-        {/* Section for settings if you add any */}
-        {/* this.buildSettingComponent({ ... }) */}
-
-        <div className="container">
-          {this.pendingItemsSection()}
-          {this.approvedItemsSection()}
-          {this.pluginTagsSection()}
-        </div>
+        <div className="container">{this.pluginTagsSection()}</div>
       </div>
     );
-  }
-
-  pendingItemsSection() {
-    return (
-      <section className="PendingItemsSection">
-        <h2>{app.translator.trans('shebaoting-dependency-collector.admin.page.pending_items_title')}</h2>
-        {this.loadingPending ? (
-          <LoadingIndicator />
-        ) : this.pendingItems.length === 0 ? (
-          <p>{app.translator.trans('shebaoting-dependency-collector.admin.page.no_pending_items')}</p>
-        ) : (
-          <table className="Table DependencyTable">
-            <thead>
-              <tr>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.title')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.submitted_by')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.submitted_at')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tags')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>{this.pendingItems.map((item) => this.itemRow(item, true))}</tbody>
-          </table>
-        )}
-      </section>
-    );
-  }
-
-  approvedItemsSection() {
-    return (
-      <section className="ApprovedItemsSection">
-        <h2>{app.translator.trans('shebaoting-dependency-collector.admin.page.approved_items_title')}</h2>
-        {this.loadingApproved ? (
-          <LoadingIndicator />
-        ) : this.approvedItems.length === 0 ? (
-          <p>{app.translator.trans('shebaoting-dependency-collector.admin.page.no_approved_items')}</p>
-        ) : (
-          <table className="Table DependencyTable">
-            <thead>
-              <tr>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.title')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.approved_by')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.approved_at')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tags')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>{this.approvedItems.map((item) => this.itemRow(item, false))}</tbody>
-          </table>
-        )}
-      </section>
-    );
-  }
-
-  itemRow(item, isPending) {
-    const submitter = item.user();
-    const approver = item.approver();
-
-    return (
-      <tr key={item.id()}>
-        <td>
-          <a href={item.link()} target="_blank">
-            {item.title()}
-          </a>
-          <br />
-          <small>{item.description()}</small>
-        </td>
-        <td>{submitter ? submitter.username() : 'N/A'}</td>
-        <td>{isPending ? humanTime(item.submittedAt()) : approver ? approver.username() : 'N/A'}</td>
-        <td>
-          {isPending
-            ? item.tags()
-              ? item
-                  .tags()
-                  .map((t) => t.name())
-                  .join(', ')
-              : ''
-            : humanTime(item.approvedAt())}
-        </td>
-        <td>
-          {isPending && (
-            <Button className="Button Button--icon" icon="fas fa-edit" onclick={() => this.editItem(item, true)}>
-              {app.translator.trans('core.admin.basics.edit_button')}
-            </Button>
-          )}
-          {!isPending && (
-            <Button className="Button Button--icon" icon="fas fa-edit" onclick={() => this.editItem(item, false)}>
-              {app.translator.trans('core.admin.basics.edit_button')}
-            </Button>
-          )}
-          {/* In a real app, EditItemModal would handle approve/reject for pending items */}
-          {isPending && (
-            <Button className="Button Button--icon Button--success" icon="fas fa-check" onclick={() => this.updateItemStatus(item, 'approved')}>
-              {app.translator.trans('shebaoting-dependency-collector.admin.actions.approve')}
-            </Button>
-          )}
-          {isPending && (
-            <Button className="Button Button--icon Button--danger" icon="fas fa-times" onclick={() => this.updateItemStatus(item, 'rejected')}>
-              {app.translator.trans('shebaoting-dependency-collector.admin.actions.reject')}
-            </Button>
-          )}
-          <Button className="Button Button--icon Button--danger" icon="fas fa-trash" onclick={() => this.deleteItem(item, isPending)}>
-            {app.translator.trans('core.admin.basics.delete_button')}
-          </Button>
-        </td>
-      </tr>
-    );
-  }
-
-  // Placeholder for edit item modal
-  editItem(item, isPending) {
-    // app.modal.show(EditDependencyItemModal, { item, isPending, onsave: isPending ? this.loadPendingItems.bind(this) : this.loadApprovedItems.bind(this) });
-    alert('Edit functionality to be implemented. Item ID: ' + item.id());
-  }
-
-  updateItemStatus(item, status) {
-    if (
-      !confirm(
-        app.translator.trans(
-          status === 'approved' ? 'shebaoting-dependency-collector.admin.confirm.approve' : 'shebaoting-dependency-collector.admin.confirm.reject'
-        ) + ` "${item.title()}"?`
-      )
-    )
-      return;
-
-    item
-      .save({ status: status })
-      .then(() => {
-        this.loadPendingItems(); // Refresh list
-        this.loadApprovedItems();
-        m.redraw();
-      })
-      .catch((e) => {
-        console.error(e);
-        alert('Error updating status.');
-      });
-  }
-
-  deleteItem(item, isPendingList) {
-    if (!confirm(app.translator.trans('shebaoting-dependency-collector.admin.confirm.delete') + ` "${item.title()}"?`)) return;
-
-    item
-      .delete()
-      .then(() => {
-        if (isPendingList) this.loadPendingItems();
-        else this.loadApprovedItems();
-        m.redraw();
-      })
-      .catch((e) => {
-        console.error(e);
-        alert('Error deleting item.');
-      });
   }
 
   pluginTagsSection() {
     return (
       <section className="PluginTagsSection">
-        <h2>{app.translator.trans('shebaoting-dependency-collector.admin.page.manage_tags_title')}</h2>
-        <Button
-          className="Button Button--primary"
-          icon="fas fa-plus"
-          onclick={() => app.modal.show(EditTagModal, { onsave: this.loadPluginTags.bind(this) })}
-        >
-          {app.translator.trans('shebaoting-dependency-collector.admin.actions.create_tag')}
-        </Button>
+        <div className="Page-header">
+          <h2>{app.translator.trans('shebaoting-dependency-collector.admin.page.manage_tags_title')}</h2>
+          <Button
+            className="Button Button--primary"
+            icon="fas fa-plus"
+            onclick={() => app.modal.show(EditTagModal, { key: 'new-tag', onsave: this.loadPluginTags.bind(this) })}
+          >
+            {app.translator.trans('shebaoting-dependency-collector.admin.actions.create_tag')}
+          </Button>
+        </div>
         {this.loadingTags ? (
           <LoadingIndicator />
         ) : this.pluginTags.length === 0 ? (
@@ -1440,34 +302,70 @@ export default class DependencyCollectorSettingsPage extends ExtensionPage {
           <table className="Table PluginTagsTable">
             <thead>
               <tr>
+                {/* --- 修改表头 --- */}
                 <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_name')}</th>
                 <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_slug')}</th>
-                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_color_icon')}</th>
+                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_color')}</th> {/* 修改 */}
+                <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_icon')}</th> {/* 新增 */}
                 <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.tag_item_count')}</th>
                 <th>{app.translator.trans('shebaoting-dependency-collector.admin.table.actions')}</th>
+                {/* --- 表头修改结束 --- */}
               </tr>
             </thead>
             <tbody>
               {this.pluginTags.map((tag) => (
-                <tr key={tag.id()}>
-                  <td>{tag.name()}</td>
-                  <td>{tag.slug()}</td>
-                  <td>
-                    {tag.color() && (
-                      <span style={{ backgroundColor: tag.color(), padding: '2px 5px', color: 'white', borderRadius: '3px', marginRight: '5px' }}>
-                        {tag.color()}
-                      </span>
-                    )}
-                    {tag.icon() && <i className={tag.icon()}></i>}
+                <tr key={tag.id()} className={this.savingTagId === tag.id() ? 'saving' : ''}>
+                  {/* 名称 - 可编辑 */}
+                  <td onclick={() => this.startEditing(tag, 'name')}>
+                    {this.isEditing(tag, 'name') ? this.renderInput(tag, 'name', 'text') : tag.name()}
                   </td>
-                  <td>{tag.itemCount()}</td>
+                  {/* Slug - 可编辑 */}
+                  <td onclick={() => this.startEditing(tag, 'slug')}>
+                    {this.isEditing(tag, 'slug') ? this.renderInput(tag, 'slug', 'text') : tag.slug()}
+                  </td>
+                  {/* --- 颜色列 --- */}
+                  <td onclick={() => this.startEditing(tag, 'color')}>
+                    {
+                      this.isEditing(tag, 'color') ? (
+                        this.renderInput(tag, 'color', 'text', '#RRGGBB') // 使用 renderInput 辅助方法
+                      ) : tag.color() ? (
+                        <span
+                          style={{
+                            backgroundColor: tag.color(),
+                            padding: '2px 5px',
+                            color: this.getTextColorForBackground(tag.color()),
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {tag.color()}
+                        </span>
+                      ) : (
+                        <span style="cursor: pointer; color: #aaa;">(none)</span>
+                      ) // 提供无颜色时的点击区域
+                    }
+                  </td>
+                  {/* --- 图标列 --- */}
+                  <td onclick={() => this.startEditing(tag, 'icon')}>
+                    {this.isEditing(tag, 'icon') ? (
+                      this.renderInput(tag, 'icon', 'text', 'fas fa-tag') // 使用 renderInput 辅助方法
+                    ) : tag.icon() ? (
+                      <i className={tag.icon()} style="cursor: pointer;"></i>
+                    ) : (
+                      <span style="cursor: pointer; color: #aaa;">(none)</span>
+                    )}
+                  </td>
+                  {/* --- 列拆分结束 --- */}
+                  {/* 条目数 - 不可编辑 */}
+                  <td>{tag.itemCount() !== undefined ? tag.itemCount() : 'N/A'}</td>
+                  {/* 操作 - 只保留删除 */}
                   <td>
                     <Button
-                      className="Button Button--icon"
-                      icon="fas fa-edit"
-                      onclick={() => app.modal.show(EditTagModal, { tag, onsave: this.loadPluginTags.bind(this) })}
+                      className="Button Button--icon Button--danger"
+                      icon="fas fa-trash"
+                      onclick={() => this.deleteTag(tag)}
+                      aria-label={app.translator.trans('shebaoting-dependency-collector.admin.actions.delete_button')}
                     />
-                    <Button className="Button Button--icon Button--danger" icon="fas fa-trash" onclick={() => this.deleteTag(tag)} />
                   </td>
                 </tr>
               ))}
@@ -1478,45 +376,151 @@ export default class DependencyCollectorSettingsPage extends ExtensionPage {
     );
   }
 
-  loadPendingItems() {
-    this.loadingPending = true;
-    app.store.find('dependency-items', { filter: { status: 'pending' }, sort: '-submittedAt' }).then((items) => {
-      this.pendingItems = items;
-      this.loadingPending = false;
-      m.redraw();
-    });
-  }
-  loadApprovedItems() {
-    this.loadingApproved = true;
-    app.store.find('dependency-items', { filter: { status: 'approved' }, sort: '-approvedAt' }).then((items) => {
-      this.approvedItems = items;
-      this.loadingApproved = false;
-      m.redraw();
-    });
+  // --- 新增：渲染内联输入框的辅助方法 ---
+  renderInput(tag, field, type = 'text', placeholder = '') {
+    return (
+      <input
+        className="FormControl FormControl--inline"
+        type={type}
+        value={this.editValue}
+        placeholder={placeholder}
+        oninput={withAttr('value', (val) => (this.editValue = val))}
+        onblur={(e) => this.saveEdit(tag, field, e.target.value)}
+        onkeydown={(e) => this.handleKeyDown(e, tag, field, e.target.value)}
+        onupdate={(vnode) => this.focusInput(vnode)}
+      />
+    );
   }
 
+  // isEditing 方法保持不变
+  isEditing(tag, field) {
+    return this.editingTagId === tag.id() && this.editingField === field;
+  }
+
+  // startEditing 方法保持不变
+  startEditing(tag, field) {
+    if (this.savingTagId) return;
+    this.editingTagId = tag.id();
+    this.editingField = field;
+    this.editValue = tag[field]() || '';
+    m.redraw();
+  }
+
+  // focusInput 方法保持不变
+  focusInput(vnode) {
+    if (vnode.dom && typeof vnode.dom.focus === 'function') {
+      setTimeout(() => vnode.dom.focus(), 0);
+    }
+  }
+
+  // handleKeyDown 方法保持不变
+  handleKeyDown(event, tag, field, value) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.saveEdit(tag, field, value);
+    } else if (event.key === 'Escape') {
+      this.cancelEdit();
+    }
+    event.redraw = false;
+  }
+
+  // saveEdit 方法保持不变
+  saveEdit(tag, field, value) {
+    if (this.savingTagId === tag.id()) {
+      console.log('Save already in progress for tag:', tag.id());
+      return;
+    }
+
+    if (value === (tag[field]() || '')) {
+      this.cancelEdit();
+      return;
+    }
+
+    this.savingTagId = tag.id();
+    m.redraw();
+
+    const attributesToSave = { [field]: value };
+    console.log('Data being passed to tag.save():', attributesToSave);
+
+    tag
+      .save(attributesToSave)
+      .then(() => {
+        console.log('Tag saved successfully.');
+        this.cancelEdit();
+      })
+      .catch((error) => {
+        console.error(`Error saving tag ${tag.id()} field ${field}:`, error);
+        let errorDetail = app.translator.trans('core.lib.error.generic_message');
+        if (error.response?.errors?.length > 0) {
+          const fieldError = error.response.errors.find((e) => e.source?.pointer === `/data/attributes/${field}`);
+          errorDetail = fieldError?.detail || error.response.errors[0].detail || errorDetail;
+        }
+        alert.component({ type: 'error' }, errorDetail);
+
+        this.savingTagId = null;
+        m.redraw();
+      });
+  }
+
+  // cancelEdit 方法保持不变
+  cancelEdit() {
+    this.editingTagId = null;
+    this.editingField = null;
+    this.editValue = '';
+    this.savingTagId = null;
+    m.redraw();
+  }
+
+  // loadPluginTags 方法保持不变
   loadPluginTags() {
     this.loadingTags = true;
-    app.store.find('dependency-tags', { sort: 'name' }).then((tags) => {
-      this.pluginTags = tags;
-      this.loadingTags = false;
-      m.redraw();
-    });
+    // 确保请求包含 itemCount (如果后端支持 sort=itemCount 或 include=itemCount)
+    // 否则依赖 serializer 计算
+    app.store
+      .find('dependency-tags', { sort: 'name' })
+      .then((tags) => {
+        this.pluginTags = tags;
+        this.loadingTags = false;
+        m.redraw();
+      })
+      .catch(() => {
+        this.loadingTags = false;
+        m.redraw();
+      });
   }
 
+  // deleteTag 方法保持不变
   deleteTag(tag) {
+    if (this.savingTagId === tag.id()) return;
     if (!confirm(app.translator.trans('shebaoting-dependency-collector.admin.confirm.delete_tag', { name: tag.name() }))) return;
 
     tag
       .delete()
       .then(() => {
-        this.loadPluginTags(); // Refresh list
+        this.pluginTags = this.pluginTags.filter((t) => t.id() !== tag.id());
         m.redraw();
       })
       .catch((e) => {
         console.error(e);
-        alert('Error deleting tag.'); // Proper error handling needed
+        alert.component({ type: 'error' }, 'Error deleting tag.');
       });
+  }
+
+  // getTextColorForBackground 方法保持不变
+  getTextColorForBackground(hexColor) {
+    if (!hexColor) return 'white';
+    hexColor = hexColor.replace('#', '');
+    if (hexColor.length === 3) {
+      hexColor = hexColor[0].repeat(2) + hexColor[1].repeat(2) + hexColor[2].repeat(2);
+    }
+    if (hexColor.length !== 6) {
+      return 'white';
+    }
+    const r = parseInt(hexColor.substr(0, 2), 16);
+    const g = parseInt(hexColor.substr(2, 2), 16);
+    const b = parseInt(hexColor.substr(4, 2), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
   }
 }
 ```
@@ -1524,11 +528,13 @@ export default class DependencyCollectorSettingsPage extends ExtensionPage {
 ### 文件路径: `js\src\admin\components\EditTagModal.js`
 
 ```javascript
-import Modal from 'flarum/admin/components/Modal'; // 确保从 'flarum/admin/components/Modal' 导入
+// js/src/admin/components/EditTagModal.js
+
+import Modal from 'flarum/admin/components/Modal';
 import Button from 'flarum/common/components/Button';
 import Stream from 'flarum/common/utils/Stream';
 import ColorPreviewInput from 'flarum/common/components/ColorPreviewInput';
-import app from 'flarum/admin/app'; // 确保导入 admin app
+import app from 'flarum/admin/app';
 
 export default class EditTagModal extends Modal {
   oninit(vnode) {
@@ -1538,10 +544,9 @@ export default class EditTagModal extends Modal {
     this.name = Stream(this.tag.name() || '');
     this.slug = Stream(this.tag.slug() || '');
     this.description = Stream(this.tag.description() || '');
-    this.color = Stream(this.tag.color() || '#cccccc'); // Default color
+    this.color = Stream(this.tag.color() || '#cccccc');
     this.icon = Stream(this.tag.icon() || '');
 
-    // 用于在提交失败时显示验证错误
     this.alertAttrs = null;
   }
 
@@ -1556,29 +561,47 @@ export default class EditTagModal extends Modal {
   }
 
   content() {
+    // 策略：移除 content() 内部所有元素的 key 属性，
+    // 依赖 Mithril 对无 key 列表的处理。
+    // Modal-body 和 Form 保持无 key。
+    // 所有 Form-group 也保持无 key。
+    // 对于 app.translator.trans 返回的数组，如果其内部的 <a> 也没有 key，
+    // 那么整个子数组就是“无 key”的，这应该是允许的。
     return (
       <div className="Modal-body">
         <div className="Form">
-          <div className="Form-group" key="name">
+          <div className="Form-group">
+            {' '}
+            {/* NO KEY */}
             <label>{app.translator.trans('shebaoting-dependency-collector.admin.modal.tag_name_label')}</label>
             <input className="FormControl" bidi={this.name} />
           </div>
-          <div className="Form-group" key="slug">
+          <div className="Form-group">
+            {' '}
+            {/* NO KEY */}
             <label>{app.translator.trans('shebaoting-dependency-collector.admin.modal.tag_slug_label')}</label>
             <input className="FormControl" bidi={this.slug} />
           </div>
-          <div className="Form-group" key="description">
+          <div className="Form-group">
+            {' '}
+            {/* NO KEY */}
             <label>{app.translator.trans('shebaoting-dependency-collector.admin.modal.tag_description_label')}</label>
             <textarea className="FormControl" bidi={this.description} rows="3"></textarea>
           </div>
-          <div className="Form-group" key="color">
+          <div className="Form-group">
+            {' '}
+            {/* NO KEY */}
             <label>{app.translator.trans('shebaoting-dependency-collector.admin.modal.tag_color_label')}</label>
             <ColorPreviewInput className="FormControl" bidi={this.color} />
           </div>
-          <div className="Form-group" key="icon">
+          <div className="Form-group">
+            {' '}
+            {/* NO KEY */}
             <label>{app.translator.trans('shebaoting-dependency-collector.admin.modal.tag_icon_label')}</label>
             <input className="FormControl" bidi={this.icon} placeholder="fas fa-code" />
             <small>
+              {' '}
+              {/* NO KEY on small, and no key on inner <a> */}
               {app.translator.trans('shebaoting-dependency-collector.admin.modal.tag_icon_help', {
                 link: (
                   <a href="https://fontawesome.com/icons" tabindex="-1" target="_blank">
@@ -1588,8 +611,10 @@ export default class EditTagModal extends Modal {
               })}
             </small>
           </div>
-          <div className="Form-group" key="submit">
-            <Button type="submit" className="Button Button--primary" loading={this.loading}>
+          <div className="Form-group">
+            {' '}
+            {/* NO KEY */}
+            <Button type="submit" className="Button Button--primary" loading={this.loading} aria-label={app.translator.trans('core.lib.save_button')}>
               {app.translator.trans('core.lib.save_button')}
             </Button>
           </div>
@@ -1601,9 +626,7 @@ export default class EditTagModal extends Modal {
   onsubmit(e) {
     e.preventDefault();
     this.loading = true;
-    this.alertAttrs = null; // 清除之前的错误提示
-
-    // const isNew = !this.tag.exists; // 如果需要区分新建和编辑的特定逻辑
+    this.alertAttrs = null;
 
     this.tag
       .save({
@@ -1614,25 +637,19 @@ export default class EditTagModal extends Modal {
         icon: this.icon(),
       })
       .then(() => {
-        if (this.attrs.onsave) this.attrs.onsave(); // 调用父组件传递的回调，例如刷新列表
-        this.hide(); // 关闭模态框
+        if (this.attrs.onsave) this.attrs.onsave();
+        this.hide();
       })
       .catch((error) => {
-        // Flarum 通常会将验证错误包装在 error.alert 中
-        // 如果 error.alert 存在，ModalManager 会自动处理并显示它
-        // 否则，你可能需要手动处理其他类型的错误
         if (error.alert) {
           this.alertAttrs = error.alert;
         } else {
-          // 对于非标准错误，可以记录到控制台或显示一个通用错误
           console.error(error);
-          // 也可以设置一个自定义的 alertAttrs
-          // this.alertAttrs = { type: 'error', content: 'An unexpected error occurred.' };
         }
       })
       .finally(() => {
         this.loading = false;
-        m.redraw(); // 确保UI更新
+        m.redraw();
       });
   }
 }
@@ -1651,30 +668,29 @@ app.initializers.add('shebaoting/dependency-collector', () => {
 ### 文件路径: `js\src\common\models\DependencyItem.js`
 
 ```javascript
+// js/src/common/models/DependencyItem.js
 import Model from 'flarum/common/Model';
-import mixin from 'flarum/common/utils/mixin'; // Not strictly needed for simple models but good to know
+import mixin from 'flarum/common/utils/mixin';
 import { getPlainContent } from 'flarum/common/utils/string';
 
 export default class DependencyItem extends Model {
   title = Model.attribute('title');
   link = Model.attribute('link');
   description = Model.attribute('description');
-  status = Model.attribute('status');
+  status = Model.attribute('status'); // 确保 status 属性存在
   submittedAt = Model.attribute('submittedAt', Model.transformDate);
   approvedAt = Model.attribute('approvedAt', Model.transformDate);
 
   user = Model.hasOne('user');
   approver = Model.hasOne('approver');
-  tags = Model.hasMany('tags'); // 'tags' here must match the relationship name in DependencyItemSerializer
+  tags = Model.hasMany('tags');
 
-  canEdit = Model.attribute('canEdit');
-  canApprove = Model.attribute('canApprove');
+  canEdit = Model.attribute('canEdit'); // 确保 canEdit 属性存在
+  canApprove = Model.attribute('canApprove'); // 确保 canApprove 属性存在
 
-  // Helper for description preview
   shortDescription(length = 100) {
     const desc = this.description();
     if (!desc) return '';
-    // A more sophisticated truncation might be needed (e.g. strip HTML if description can contain it)
     return getPlainContent(desc).substring(0, length) + (desc.length > length ? '...' : '');
   }
 }
@@ -1770,27 +786,32 @@ app.initializers.add('shebaoting/dependency-collector', () => {
 ### 文件路径: `js\src\forum\components\DependencyItemCard.js`
 
 ```javascript
+// js/src/forum/components/DependencyItemCard.js
 import Component from 'flarum/common/Component';
-import Link from 'flarum/common/components/Link';
+import Link from 'flarum/common/components/Link'; // Link 组件在这里使用
 import avatar from 'flarum/common/helpers/avatar';
 import username from 'flarum/common/helpers/username';
 import humanTime from 'flarum/common/utils/humanTime';
 import classList from 'flarum/common/utils/classList';
+import Button from 'flarum/common/components/Button';
+import EditDependencyModal from './EditDependencyModal';
 
 export default class DependencyItemCard extends Component {
   view() {
     const item = this.attrs.item;
     const user = item.user();
-    // const approver = item.approver(); // If you want to show approver
 
     return (
       <div className={classList('DependencyItemCard', item.status() === 'pending' && 'DependencyItemCard--pending')}>
-        {item.status() === 'pending' && (
+        {/* Status badge logic... */}
+        {item.status() === 'pending' && app.session.user && (app.session.user.id() === item.user()?.id() || item.canApprove()) && (
           <span className="DependencyItemCard-statusBadge">
             {app.translator.trans('shebaoting-dependency-collector.forum.item.pending_approval')}
           </span>
         )}
+
         <div className="DependencyItemCard-header">
+          {/* Title link... */}
           <h3 className="DependencyItemCard-title">
             <a href={item.link()} target="_blank" rel="noopener noreferrer">
               {item.title()}
@@ -1798,6 +819,7 @@ export default class DependencyItemCard extends Component {
           </h3>
         </div>
         <div className="DependencyItemCard-body">
+          {/* Description... */}
           <p className="DependencyItemCard-description">{item.shortDescription(150)}</p>
         </div>
         <div className="DependencyItemCard-footer">
@@ -1805,9 +827,13 @@ export default class DependencyItemCard extends Component {
             {item.tags() &&
               item.tags().map((tag) => (
                 <Link
+                  key={tag.id()}
                   className="DependencyItemCard-tag"
-                  href={app.route('dependency-collector.forum.index', { filter: { tag: tag.slug() } })}
-                  style={{ backgroundColor: tag.color(), color: 'white' /* Adjust based on color contrast */ }}
+                  // --- 核心修改在这里 ---
+                  // 将路由参数键名从 'tag' (如果之前是错误的) 改为 'tagSlug'
+                  href={app.route('dependency-collector.forum.index', { tagSlug: tag.slug() })}
+                  // --- 修改结束 ---
+                  style={{ backgroundColor: tag.color(), color: this.getTextColorForBackground(tag.color()) }}
                 >
                   {tag.icon() && <i className={tag.icon() + ' DependencyItemCard-tagIcon'}></i>}
                   {tag.name()}
@@ -1815,20 +841,80 @@ export default class DependencyItemCard extends Component {
               ))}
           </div>
           <div className="DependencyItemCard-meta">
+            {/* Submitter info... */}
             {user && (
               <span className="DependencyItemCard-submitter">
                 {avatar(user, { className: 'DependencyItemCard-avatar' })}
                 {username(user)}
               </span>
             )}
+            {/* Time... */}
             <span className="DependencyItemCard-time" title={item.submittedAt().toLocaleString()}>
               {humanTime(item.submittedAt())}
             </span>
-            {/* Optional: Show approved at/by */}
+            {/* Actions... */}
+            <div className="DependencyItemCard-actions">
+              {item.canEdit() && (
+                <Button
+                  className="Button Button--icon Button--link"
+                  icon="fas fa-pencil-alt"
+                  onclick={this.editItem.bind(this)}
+                  aria-label={app.translator.trans('core.forum.post_controls.edit_button')}
+                />
+              )}
+              {item.canApprove() && (
+                <Button
+                  className={classList('Button Button--icon Button--link', item.status() === 'approved' ? 'Button--danger' : 'Button--success')}
+                  icon={item.status() === 'approved' ? 'fas fa-times' : 'fas fa-check'}
+                  onclick={this.toggleApproval.bind(this)}
+                  aria-label={
+                    item.status() === 'approved'
+                      ? app.translator.trans('shebaoting-dependency-collector.forum.item.unapprove_button')
+                      : app.translator.trans('shebaoting-dependency-collector.forum.item.approve_button')
+                  }
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
     );
+  }
+
+  // editItem, toggleApproval, getTextColorForBackground 方法保持不变...
+  editItem() {
+    app.modal.show(EditDependencyModal, { item: this.attrs.item, onsave: this.attrs.onchange });
+  }
+
+  toggleApproval() {
+    const item = this.attrs.item;
+    const newStatus = item.status() === 'approved' ? 'pending' : 'approved';
+
+    item
+      .save({ status: newStatus })
+      .then(() => {
+        if (this.attrs.onchange) this.attrs.onchange();
+        m.redraw();
+      })
+      .catch((error) => {
+        console.error('Error toggling approval status:', error);
+      });
+  }
+
+  getTextColorForBackground(hexColor) {
+    if (!hexColor) return 'white';
+    hexColor = hexColor.replace('#', '');
+    if (hexColor.length === 3) {
+      hexColor = hexColor[0].repeat(2) + hexColor[1].repeat(2) + hexColor[2].repeat(2);
+    }
+    if (hexColor.length !== 6) {
+      return 'white'; // Fallback for invalid color
+    }
+    const r = parseInt(hexColor.substr(0, 2), 16);
+    const g = parseInt(hexColor.substr(2, 2), 16);
+    const b = parseInt(hexColor.substr(4, 2), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
   }
 }
 ```
@@ -1836,132 +922,511 @@ export default class DependencyItemCard extends Component {
 ### 文件路径: `js\src\forum\components\DependencyListPage.js`
 
 ```javascript
+// js/src/forum/components/DependencyListPage.js
+
 import Page from 'flarum/common/components/Page';
 import Button from 'flarum/common/components/Button';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 import DependencyItemCard from './DependencyItemCard';
-import listItems from 'flarum/common/helpers/listItems';
-import Link from 'flarum/common/components/Link'; // For tag links
-import SubmitDependencyModal from './SubmitDependencyModal'; // We'll create this
+// Link 导入是好的实践，即使当前没有直接使用实例
+import Link from 'flarum/common/components/Link';
+import SubmitDependencyModal from './SubmitDependencyModal';
 
 export default class DependencyListPage extends Page {
   oninit(vnode) {
     super.oninit(vnode);
-    this.loading = true;
-    this.items = [];
-    this.tags = []; // To store available plugin tags for filtering
-    this.moreResults = false;
-    this.currentTagFilter = m.route.param('filter') && m.route.param('filter').tag; // Get tag from route
+    console.log('DependencyListPage oninit'); // 调试日志
 
-    this.loadResults();
-    this.loadTags(); // For filter sidebar
+    this.loadingItems = true; // 依赖项列表的加载状态
+    this.loadingTags = true; // 标签列表的加载状态
+    this.loadingMore = false; // “加载更多”按钮的加载状态
+    this.items = [];
+    this.tags = []; // 初始化为空数组，避免渲染时出错
+    this.moreResults = false;
+    // 初始化 currentTagFilter，确保首次加载时使用正确的路由参数
+    this.currentTagFilter = m.route.param('tagSlug') || null; // 使用 null 代替 undefined
+
+    // 在初始化时同时开始加载标签和依赖项
+    this.loadTags();
+    this.loadResults(0); // 加载第一页依赖项
+  }
+
+  oncreate(vnode) {
+    super.oncreate(vnode);
+    app.setTitle(app.translator.trans('shebaoting-dependency-collector.forum.nav_title'));
+    app.setTitleCount(0); // 清除页面标题的计数（如果有）
+  }
+
+  // 使用 onbeforeupdate 来检测路由参数的变化
+  onbeforeupdate(vnode, old) {
+    super.onbeforeupdate(vnode, old);
+
+    const newTagFilter = m.route.param('tagSlug') || null; // 获取新的路由参数
+
+    // 检查路由参数是否真的发生了变化
+    if (newTagFilter !== this.currentTagFilter) {
+      console.log('Tag filter changed from', this.currentTagFilter, 'to', newTagFilter); // 调试日志
+      this.currentTagFilter = newTagFilter; // 更新组件内部的状态以匹配路由
+      this.loadResults(0); // 仅重新加载依赖项列表的第一页
+      // 返回 false 可以阻止 Mithril 的默认重绘，因为 loadResults 会在其 finally 块中调用 m.redraw()
+      // 这可以避免潜在的重复渲染或状态不一致。
+      return false;
+    }
+
+    // 如果路由参数没有变化，允许 Mithril 进行正常的重绘
+    return true;
   }
 
   view() {
+    // 调试日志，展示当前渲染时的状态
+    console.log(
+      'DependencyListPage view rendering. LoadingItems:',
+      this.loadingItems,
+      'LoadingTags:',
+      this.loadingTags,
+      'Items:',
+      this.items.length,
+      'Tags:',
+      this.tags.length,
+      'CurrentTag:',
+      this.currentTagFilter
+    );
+
     return (
-      <div className="DependencyListPage">
-        <div className="DependencyListPage-header">
-          {/* Optional: Add sorting dropdown here */}
-          {app.session.user &&
-            app.forum.attribute('canSubmitDependencyCollectorItem') && ( // Check permission
-              <Button
-                className="Button Button--primary App-primaryControl"
-                onclick={() => app.modal.show(SubmitDependencyModal, { onsubmit: this.loadResults.bind(this) })}
-              >
-                {app.translator.trans('shebaoting-dependency-collector.forum.list.submit_button')}
-              </Button>
-            )}
-        </div>
-        <div className="DependencyListPage-body">
-          <div className="DependencyListPage-sidebar">
-            <h3>{app.translator.trans('shebaoting-dependency-collector.forum.list.filter_by_tag')}</h3>
-            <ul className="DependencyListTags">
-              <li className={!this.currentTagFilter ? 'active' : ''}>
-                <Link href={app.route('dependency-collector.forum.index')}>
-                  {app.translator.trans('shebaoting-dependency-collector.forum.list.all_tags')}
-                </Link>
+      <div className="container">
+        {/* 使用 sideNavContainer 保持和 Flarum 索引页类似的布局 */}
+        <div className="sideNavContainer">
+          {/* 左侧导航栏 */}
+          <div className="IndexPage-nav sideNav">
+            <ul className="DependencyListPage">
+              {/* 提交按钮区域 */}
+              <li className="item-newDiscussion App-primaryControl">
+                {/* 检查用户是否登录以及是否有提交权限 */}
+                {app.session.user && app.forum?.attribute('canSubmitDependencyCollectorItem') && (
+                  <Button
+                    // 使用 Flarum 核心样式类以保持一致性
+                    className="Button Button--primary IndexPage-newDiscussion"
+                    icon="fas fa-plus"
+                    onclick={() =>
+                      app.modal.show(SubmitDependencyModal, {
+                        // 传递回调，提交成功后刷新依赖项列表
+                        onsubmit: () => this.loadResults(0),
+                      })
+                    }
+                  >
+                    {/* 按钮文本 */}
+                    {app.translator.trans('shebaoting-dependency-collector.forum.list.submit_button')}
+                  </Button>
+                )}
               </li>
-              {this.tags.map((tag) => (
-                <li key={tag.id()} className={this.currentTagFilter === tag.slug() ? 'active' : ''}>
-                  <Link href={app.route('dependency-collector.forum.index', { filter: { tag: tag.slug() } })}>
-                    {tag.icon() && <i className={tag.icon() + ' DependencyListTag-icon'}></i>}
-                    {tag.name()}
-                  </Link>
-                </li>
-              ))}
+
+              {/* 标签列表导航区域 */}
+              <li className="item-nav DependencyListPage-sidebar">
+                {/* 标签列表标题 */}
+                {/* <h3>{app.translator.trans('shebaoting-dependency-collector.forum.list.tags_heading')}</h3> */}
+                <div className="ButtonGroup Dropdown dropdown App-titleControl Dropdown--select itemCount9">
+                  {/* 如果标签正在加载，显示加载指示器 */}
+                  {this.loadingTags ? (
+                    <LoadingIndicator />
+                  ) : (
+                    // 使用 Flarum 核心标签导航样式
+                    <ul className="DependencyListTags">
+                      {/* “全部标签”链接 */}
+                      <li className={'TagLink ' + (!this.currentTagFilter ? 'active item-allDiscussions' : 'item-allDiscussions')}>
+                        <a
+                          // 生成指向 "全部标签" 的路由 URL
+                          href={app.route('dependency-collector.forum.index')}
+                          onclick={(e) => {
+                            e.preventDefault(); // 阻止默认的页面跳转
+                            // 只有当当前过滤器不是 "全部" 时才进行路由切换
+                            if (this.currentTagFilter) {
+                              m.route.set(app.route('dependency-collector.forum.index'));
+                            }
+                          }}
+                        >
+                          <span className="TagLink-name">{app.translator.trans('shebaoting-dependency-collector.forum.list.all_tags')}</span>
+                        </a>
+                      </li>
+                      {/* 渲染具体的标签链接 */}
+                      {/* 确保 this.tags 存在且有内容 */}
+                      {this.tags && this.tags.length > 0
+                        ? this.tags.map((tag) => (
+                            <li
+                              key={tag.id()}
+                              className={'TagLink ' + (this.currentTagFilter === tag.slug() ? 'active item-allDiscussions' : 'item-allDiscussions')}
+                            >
+                              <a
+                                // 生成指向特定标签过滤的路由 URL
+                                href={app.route('dependency-collector.forum.index', { tagSlug: tag.slug() })}
+                                onclick={(e) => {
+                                  e.preventDefault(); // 阻止默认跳转
+                                  // 只有当点击的不是当前已选标签时才进行路由切换
+                                  if (this.currentTagFilter !== tag.slug()) {
+                                    m.route.set(app.route('dependency-collector.forum.index', { tagSlug: tag.slug() }));
+                                  }
+                                }}
+                              >
+                                {/* 如果标签有图标，则显示 */}
+                                {tag.icon() && <i className={tag.icon() + ' TagLink-icon'}></i>}
+                                <span className="TagLink-name">{tag.name()}</span>
+                              </a>
+                            </li>
+                          ))
+                        : // 如果标签加载完成但列表为空，显示提示信息
+                          !this.loadingTags && (
+                            <li className="TagLink disabled">
+                              <span className="TagLink-name">{app.translator.trans('shebaoting-dependency-collector.forum.list.no_tags')}</span>
+                            </li>
+                          )}
+                    </ul>
+                  )}
+                </div>
+              </li>
             </ul>
           </div>
-          <div className="DependencyListPage-content">
-            {this.loading && this.items.length === 0 ? (
-              <LoadingIndicator />
-            ) : (
-              <div className="DependencyList">
-                {this.items.map((item) => (
-                  <DependencyItemCard item={item} key={item.id()} />
-                ))}
-              </div>
-            )}
 
-            {!this.loading && this.items.length === 0 && <p>{app.translator.trans('shebaoting-dependency-collector.forum.list.empty_text')}</p>}
+          {/* 主要内容区域，显示依赖项列表 */}
+          <div className="IndexPage-results sideNavOffset DependencyListPage">
+            <div className="DependencyListPage-body">
+              {/* 如果是初始加载依赖项且当前没有项目，显示加载指示器 */}
+              {this.loadingItems && this.items.length === 0 ? (
+                <LoadingIndicator />
+              ) : (
+                // 依赖项列表容器
+                <div className="DependencyList">
+                  {/* 确保 this.items 存在且有内容 */}
+                  {this.items && this.items.length > 0
+                    ? // 遍历并渲染每个依赖项卡片
+                      this.items.map((item) => <DependencyItemCard item={item} key={item.id()} onchange={() => this.loadResults(0)} />)
+                    : // 如果依赖项加载完成但列表为空，显示空状态提示
+                      !this.loadingItems && <p>{app.translator.trans('shebaoting-dependency-collector.forum.list.empty_text')}</p>}
+                </div>
+              )}
 
-            {this.moreResults && !this.loading && (
-              <Button className="Button" onclick={this.loadMore.bind(this)}>
-                {app.translator.trans('core.forum.discussion_list.load_more_button')}
-              </Button>
-            )}
+              {/* “加载更多”按钮 */}
+              {/* 仅当有更多结果时才显示此区域 */}
+              {this.moreResults && (
+                <div style="text-align: center; margin-top: 10px;">
+                  <Button
+                    className="Button"
+                    onclick={this.loadMore.bind(this)}
+                    // 使用 loading 属性在加载更多时显示加载状态并禁用按钮
+                    loading={this.loadingMore}
+                  >
+                    {app.translator.trans('core.forum.discussion_list.load_more_button')}
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
+  // 加载依赖项列表的方法
   loadResults(offset = 0) {
-    this.loading = true;
-    m.redraw(); // Inform Mithril about the change
-
-    const params = {
-      page: { offset },
-      sort: '-approvedAt', // Default sort
-      // include: 'user,tags,approver' // Already default in controller
-    };
-
-    if (this.currentTagFilter) {
-      params.filter = { tag: this.currentTagFilter };
+    // offset === 0 表示初始加载或过滤加载
+    if (offset === 0) {
+      this.loadingItems = true;
+      this.items = []; // 清空列表以准备显示新的结果或加载指示器
+      this.moreResults = false; // 重置是否有更多结果的状态
+      m.redraw(); // 立即重绘以反映加载状态
+    } else {
+      // offset > 0 表示加载更多
+      this.loadingMore = true;
+      m.redraw(); // 立即重绘以更新“加载更多”按钮状态
     }
 
+    // 准备 API 请求参数
+    const params = {
+      page: { offset },
+      sort: '-approvedAt', // 按最新审核排序
+      include: 'user,tags,approver', // 请求包含关联的用户、标签和审核者信息
+      filter: {}, // 确保 filter 对象存在
+    };
+
+    // 如果当前设置了标签过滤器，添加到请求参数中
+    if (this.currentTagFilter) {
+      params.filter.tag = this.currentTagFilter;
+    }
+
+    console.log('Loading results with params:', JSON.stringify(params)); // 调试日志
+
+    // 发起 API 请求
     return app.store
       .find('dependency-items', params)
       .then((results) => {
-        if (offset === 0) {
-          this.items = [];
+        console.log('Results loaded:', results); // 调试日志
+        // 检查返回的是否是数组 (Flarum store.find 成功时应返回模型数组)
+        if (Array.isArray(results)) {
+          if (offset === 0) {
+            // 如果是初始加载，直接替换列表
+            this.items = results;
+          } else {
+            // 如果是加载更多，追加到现有列表
+            this.items.push(...results);
+          }
+          // 检查 API 响应的 payload 中是否有下一页的链接
+          // store 返回的数组会附加一个 payload 对象包含元数据和链接
+          this.moreResults = !!results.payload?.links?.next;
+          console.log('More results:', this.moreResults); // 调试日志
+        } else {
+          // 处理 API 返回格式不正确的情况
+          console.error('API did not return an array for dependency-items:', results);
+          if (offset === 0) this.items = []; // 如果是初始加载，清空列表
+          this.moreResults = false; // 标记没有更多结果
         }
-        this.items.push(...results);
-        this.moreResults = !!results.payload.links && !!results.payload.links.next;
       })
       .catch((error) => {
-        // Handle error
-        console.error(error);
+        // 处理 API 请求错误
+        console.error('Error loading dependency items:', error);
+        if (offset === 0) this.items = []; // 错误发生时，如果是初始加载则清空列表
+        this.moreResults = false; // 标记没有更多结果
+        // 可以在这里向用户显示错误提示，例如使用 app.alerts.show
+        app.alerts.show({ type: 'error' }, app.translator.trans('shebaoting-dependency-collector.forum.list.load_error'));
+      })
+      .finally(() => {
+        // 无论请求成功或失败，都结束加载状态
+        this.loadingItems = false;
+        this.loadingMore = false;
+        m.redraw(); // 确保最终的 UI 状态被渲染
+        console.log('Loading finished, redraw called.'); // 调试日志
+      });
+  }
+
+  // 加载标签列表的方法
+  loadTags() {
+    this.loadingTags = true;
+    // 可以选择在这里重绘以显示加载状态
+    // m.redraw();
+
+    // 发起 API 请求获取所有标签，按名称排序
+    app.store
+      .find('dependency-tags', { sort: 'name' })
+      .then((tags) => {
+        console.log('Tags loaded:', tags); // 调试日志
+        // 确保返回的是数组
+        if (Array.isArray(tags)) {
+          this.tags = tags;
+        } else {
+          console.error('API did not return an array for dependency-tags:', tags);
+          this.tags = []; // 保证 tags 是一个空数组
+        }
+      })
+      .catch((error) => {
+        // 处理错误
+        console.error('Error loading tags:', error);
+        this.tags = []; // 出错时也保证 tags 是空数组
+        // 可以显示错误提示
+        app.alerts.show({ type: 'error' }, app.translator.trans('shebaoting-dependency-collector.forum.list.load_tags_error'));
+      })
+      .finally(() => {
+        // 结束标签加载状态
+        this.loadingTags = false;
+        // 确保标签列表加载完成后 UI 能更新，即使依赖项列表还在加载
+        m.redraw();
+        console.log('Tag loading finished.'); // 调试日志
+      });
+  }
+
+  // 加载更多依赖项的方法
+  loadMore() {
+    // 如果正在加载中（初始或更多），则不执行任何操作
+    if (this.loadingItems || this.loadingMore) return;
+
+    console.log('Loading more items...'); // 调试日志
+    // 调用 loadResults，使用当前项目数量作为下一页的偏移量
+    this.loadResults(this.items.length);
+  }
+
+  // 组件移除时的清理方法
+  onremove(vnode) {
+    console.log('DependencyListPage onremove'); // 调试日志
+    super.onremove(vnode);
+    // 如果有事件监听器或其他需要清理的资源，在此处处理
+  }
+}
+```
+
+### 文件路径: `js\src\forum\components\EditDependencyModal.js`
+
+```javascript
+// js/src/forum/components/EditDependencyModal.js
+
+import Modal from 'flarum/common/components/Modal';
+import Button from 'flarum/common/components/Button';
+import Stream from 'flarum/common/utils/Stream';
+import classList from 'flarum/common/utils/classList';
+import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
+
+export default class EditDependencyModal extends Modal {
+  oninit(vnode) {
+    super.oninit(vnode);
+
+    this.item = this.attrs.item; // 获取要编辑的 item
+
+    this.title = Stream(this.item.title());
+    this.link = Stream(this.item.link());
+    this.description = Stream(this.item.description());
+    // 初始化选中的标签 ID 列表
+    this.selectedTagIds = Stream(this.item.tags() ? this.item.tags().map((tag) => tag.id()) : []);
+
+    this.availableTagsList = [];
+    this.loadingTags = true;
+    this.loadAvailableTags();
+
+    this.alertAttrs = null; // 用于显示错误
+  }
+
+  className() {
+    return 'EditDependencyModal Modal--small'; // 可以给编辑弹窗不同的类名
+  }
+
+  title() {
+    // 可以为编辑弹窗设置一个不同的标题
+    return app.translator.trans('shebaoting-dependency-collector.forum.modal.edit_title', { title: this.item.title() }); // 需要添加翻译
+  }
+
+  content() {
+    return (
+      <div className="Modal-body">
+        <div className="Form Form--centered">
+          <div className="Form-group">
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.title_label')}</label> */}
+            <input className="FormControl" bidi={this.title} />
+          </div>
+          <div className="Form-group">
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.link_label')}</label> */}
+            <input type="url" className="FormControl" bidi={this.link} />
+          </div>
+          <div className="Form-group">
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.description_label')}</label> */}
+            <textarea className="FormControl" bidi={this.description} rows="5"></textarea>
+          </div>
+          <div className="Form-group">
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.tags_label')}</label> */}
+            {this.loadingTags ? (
+              <LoadingIndicator />
+            ) : (
+              <div className="TagSelector">
+                {this.availableTagsList.length > 0 ? (
+                  this.availableTagsList.map((tag) => {
+                    const isSelected = this.selectedTagIds().includes(tag.id());
+                    return (
+                      <Button
+                        key={tag.id()} // 添加 key
+                        className={classList('Button Button--tag', isSelected && 'active')}
+                        icon={tag.icon()}
+                        style={
+                          isSelected
+                            ? { backgroundColor: tag.color() || '#4D698E', color: 'white' }
+                            : { borderColor: tag.color() || '#ddd', color: tag.color() || 'inherit' }
+                        }
+                        onclick={() => this.toggleTag(tag.id())}
+                      >
+                        {tag.name()}
+                      </Button>
+                    );
+                  })
+                ) : (
+                  <p>{/* 可能需要一个“无可用标签”的提示 */}</p>
+                )}
+              </div>
+            )}
+            <small>{app.translator.trans('shebaoting-dependency-collector.forum.modal.tags_help')}</small>
+          </div>
+          <div className="Form-group">
+            <Button
+              type="submit"
+              className="Button Button--primary Button--block"
+              loading={this.loading}
+              disabled={!this.isDirty() || !this.isValid()}
+            >
+              {app.translator.trans('core.lib.save_changes_button')}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  loadAvailableTags() {
+    app.store
+      .find('dependency-tags')
+      .then((tags) => {
+        this.availableTagsList = tags;
+        this.loadingTags = false;
+        m.redraw();
+      })
+      .catch((error) => {
+        console.error('Error loading tags for edit modal:', error);
+        this.loadingTags = false;
+        m.redraw();
+      });
+  }
+
+  toggleTag(tagId) {
+    const currentSelected = [...this.selectedTagIds()];
+    const index = currentSelected.indexOf(tagId);
+    if (index > -1) {
+      currentSelected.splice(index, 1);
+    } else {
+      currentSelected.push(tagId);
+    }
+    this.selectedTagIds(currentSelected);
+  }
+
+  // 检查表单是否有效（例如，标签不能为空）
+  isValid() {
+    const selectedTags = this.selectedTagIds();
+    return this.title() && this.link() && this.description() && Array.isArray(selectedTags) && selectedTags.length > 0;
+  }
+
+  // 检查是否有任何更改
+  isDirty() {
+    const currentTagIds = this.item.tags() ? this.item.tags().map((tag) => tag.id()) : [];
+    const selectedTagIds = this.selectedTagIds();
+    // 比较数组需要排序
+    const tagsChanged = JSON.stringify([...currentTagIds].sort()) !== JSON.stringify([...selectedTagIds].sort());
+
+    return this.title() !== this.item.title() || this.link() !== this.item.link() || this.description() !== this.item.description() || tagsChanged;
+  }
+
+  onsubmit(e) {
+    e.preventDefault();
+    if (!this.isDirty()) {
+      this.hide(); // 如果没有更改，直接关闭
+      return;
+    }
+    this.loading = true;
+    this.alertAttrs = null; // 清除之前的错误
+
+    const relationships = {
+      tags: this.selectedTagIds()
+        .map((id) => app.store.getById('dependency-tags', id))
+        .filter((tag) => tag),
+    };
+
+    this.item
+      .save({
+        title: this.title(),
+        link: this.link(),
+        description: this.description(),
+        relationships: relationships,
+      })
+      .then(() => {
+        if (this.attrs.onsave) this.attrs.onsave(); // 如果父组件提供了回调
+        this.hide(); // 保存成功后关闭
+      })
+      .catch((error) => {
+        console.error('Error updating dependency:', error);
+        this.alertAttrs = error.alert; // 显示 API 返回的错误
       })
       .finally(() => {
         this.loading = false;
         m.redraw();
       });
-  }
-
-  loadTags() {
-    app.store.find('dependency-tags').then((tags) => {
-      this.tags = tags;
-      m.redraw();
-    });
-  }
-
-  loadMore() {
-    this.loadResults(this.items.length);
-  }
-
-  onremove(vnode) {
-    super.onremove(vnode);
-    // Clean up listeners or other resources if any
   }
 }
 ```
@@ -2016,7 +1481,7 @@ export default class SubmitDependencyModal extends Modal {
       <div className="Modal-body">
         <div className="Form Form--centered">
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.title_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.title_label')}</label> */}
             <input
               className="FormControl"
               bidi={this.title}
@@ -2024,11 +1489,11 @@ export default class SubmitDependencyModal extends Modal {
             />
           </div>
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.link_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.link_label')}</label> */}
             <input type="url" className="FormControl" bidi={this.link} placeholder="https://example.com" />
           </div>
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.description_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.description_label')}</label> */}
             <textarea
               className="FormControl"
               bidi={this.description}
@@ -2037,7 +1502,7 @@ export default class SubmitDependencyModal extends Modal {
             ></textarea>
           </div>
           <div className="Form-group">
-            <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.tags_label')}</label>
+            {/* <label>{app.translator.trans('shebaoting-dependency-collector.forum.modal.tags_label')}</label> */}
             {this.loadingTags ? (
               <p>{app.translator.trans('core.lib.loading_indicator_text')}</p>
             ) : (
@@ -2047,18 +1512,18 @@ export default class SubmitDependencyModal extends Modal {
                   this.availableTagsList.map((tag) => {
                     const isSelected = this.selectedTagIds().includes(tag.id());
                     return (
-                      <Button
-                        className={classList('Button Button--tag', isSelected && 'active')}
+                      <span
+                        className={classList('colored text-contrast--dark', isSelected && 'active')}
                         icon={tag.icon()}
                         style={
                           isSelected
-                            ? { backgroundColor: tag.color() || '#4D698E', color: 'white' }
-                            : { borderColor: tag.color() || '#ddd', color: tag.color() || 'inherit' }
+                            ? { backgroundColor: '#d1f0da', borderColor: tag.color() || '#ddd', color: '#669974' || 'inherit' }
+                            : { backgroundColor: tag.color() || '#4D698E', color: 'white' }
                         }
                         onclick={() => this.toggleTag(tag.id())}
                       >
                         {tag.name()}
-                      </Button>
+                      </span>
                     );
                   })
                 ) : (
@@ -2172,6 +1637,64 @@ export default class SubmitDependencyModal extends Modal {
             margin-right: 5px;
         }
     }
+    .PluginTagsSection {
+      .Page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+    }
+    .PluginTagsTable {
+        width: 100%;
+        // --- 新增：固定表格布局算法 ---
+        table-layout: fixed;
+        // --- 新增结束 ---
+
+        th, td {
+            vertical-align: middle;
+            text-align: center;
+            // --- 新增：防止内容溢出，尤其是在固定布局下 ---
+            overflow: hidden;       // 隐藏溢出内容
+            text-overflow: ellipsis; // 用省略号表示被隐藏的文本
+            white-space: nowrap;    // 防止文本换行（如果需要换行则移除此行）
+            // --- 新增结束 ---
+        }
+
+        // 保持或调整列宽设置，确保总和接近 100%
+        th:nth-child(1), td:nth-child(1) { /* Name */ width: 25%; text-align: left; }
+        th:nth-child(2), td:nth-child(2) { /* Slug */ width: 25%; text-align: left; }
+        th:nth-child(3), td:nth-child(3) { /* Color */ width: 15%; }
+        th:nth-child(4), td:nth-child(4) { /* Icon */ width: 10%; }
+        th:nth-child(5), td:nth-child(5) { /* Item Count */ width: 10%; }
+        th:nth-child(6), td:nth-child(6) { /* Actions */ width: 15%; text-align: right;}
+
+
+        td {
+            &:nth-child(1), &:nth-child(2), &:nth-child(3), &:nth-child(4) {
+                 cursor: pointer;
+            }
+
+            .FormControl--inline {
+                display: block; // 改为 block 或 inline-block 配合 100% 宽度
+                // --- 修改：让输入框充满单元格宽度 ---
+                width: 100%;
+                // --- 新增：确保 padding 和 border 包含在宽度内 ---
+                box-sizing: border-box;
+                // --- 修改结束 ---
+                padding: 2px 6px;
+                height: auto;
+                line-height: inherit;
+                font-size: inherit;
+                // 移除 min-width，因为它可能导致列被撑开
+                // min-width: 80px;
+                text-align: left;
+            }
+        }
+        tr.saving td {
+           opacity: 0.5;
+           pointer-events: none;
+        }
+    }
 }
 
 .EditTagModal {
@@ -2183,168 +1706,212 @@ export default class SubmitDependencyModal extends Modal {
 
 ```text
 .DependencyListPage {
-    .DependencyListPage-body {
-        display: flex;
+  margin-top: 30px;
+
+  .DependencyListPage-sidebar {
+    width: 200px; // Adjust as needed
+    margin-right: 20px;
+
+    h3 {
+      font-size: 1.1em;
+      margin-bottom: 10px;
     }
-    .DependencyListPage-sidebar {
-        width: 200px; // Adjust as needed
-        margin-right: 20px;
-        h3 {
-            font-size: 1.1em;
-            margin-bottom: 10px;
+
+    .DependencyListTags {
+      list-style: none;
+      padding-left: 0;
+      display: flex;
+      flex-wrap: wrap;
+      li {
+        background-color: #e0f4e6;
+        margin: 5px;
+        box-sizing: border-box;
+        &.active a {
+          font-weight: bold;
+          color: @primary-color;
         }
-        .DependencyListTags {
-            list-style: none;
-            padding-left: 0;
-            li {
-                margin-bottom: 5px;
-                &.active a {
-                    font-weight: bold;
-                    color: @primary-color;
-                }
-                a {
-                    text-decoration: none;
-                    color: @text-color;
-                    &:hover {
-                        color: @primary-color;
-                    }
-                }
-            }
-            .DependencyListTag-icon {
-                margin-right: 5px;
-            }
+
+        a {
+          text-decoration: none;
+          color: @text-color;
+
+          &:hover {
+            color: @primary-color;
+          }
         }
+      }
+
+      .DependencyListTag-icon {
+        margin-right: 5px;
+      }
+
+      .item-allDiscussions {
+        display: inline-block;
+        margin-bottom: 0;
+        text-align: center;
+        vertical-align: middle;
+        cursor: pointer;
+        white-space: nowrap;
+        line-height: 20px;
+        padding: 8px 13px;
+        border-radius: 4px;
+        -webkit-user-select: none;
+        user-select: none;
+        color: var(--button-color);
+        background: var(--button-bg);
+        border: 0;
+        margin-right: 5px;
+      }
     }
-    .DependencyListPage-content {
-        flex-grow: 1;
-    }
-    .DependencyList {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); // Responsive grid
-        gap: 15px;
-    }
+  }
+
+  .DependencyListPage-content {
+    flex-grow: 1;
+  }
+
+.DependencyList {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
 }
 
 .DependencyItemCard {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 15px;
-    background-color: #fff;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+  border-radius: 4px;
+  padding: 15px;
+  background-color: var(--hero-bg);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 
-    &--pending {
-        opacity: 0.7;
-        border-left: 3px solid @alert-color;; // Example for pending
+  &--pending {
+    opacity: 0.7;
+    border-left: 3px solid @alert-color;
+    ; // Example for pending
+  }
+
+  .DependencyItemCard-statusBadge {
+    background-color: @alert-color;
+    ;
+    color: white;
+    padding: 2px 6px;
+    font-size: 0.8em;
+    border-radius: 3px;
+    float: right; // Or position as needed
+    margin-bottom: 5px;
+  }
+
+  .DependencyItemCard-header {
+    margin-bottom: 10px;
+
+    .DependencyItemCard-title {
+      margin: 0;
+      a {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: @heading-color;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
     }
+    }
+  }
 
-    .DependencyItemCard-statusBadge {
-        background-color: @alert-color;;
-        color: white;
-        padding: 2px 6px;
-        font-size: 0.8em;
-        border-radius: 3px;
-        float: right; // Or position as needed
+  .DependencyItemCard-body {
+    margin-bottom: 10px;
+    flex-grow: 1;
+
+    .DependencyItemCard-description {
+      font-size: 0.9em;
+      color: @text-color;
+      line-height: 1.4;
+    }
+  }
+
+  .DependencyItemCard-footer {
+    font-size: 0.85em;
+    color: #777;
+
+    .DependencyItemCard-tags {
+      margin-bottom: 8px;
+
+      .DependencyItemCard-tag {
+        display: inline-block;
+        padding: 3px 8px;
+        margin-right: 5px;
         margin-bottom: 5px;
+        border-radius: 3px;
+        font-size: 0.9em;
+        text-decoration: none;
+
+        &:hover {
+          opacity: 0.8;
+        }
+      }
+
+      .DependencyItemCard-tagIcon {
+        margin-right: 3px;
+      }
     }
 
-    .DependencyItemCard-header {
-        margin-bottom: 10px;
-        .DependencyItemCard-title a {
-            font-size: 1.2em;
-            font-weight: bold;
-            color: @heading-color;
-            text-decoration: none;
-            &:hover {
-                text-decoration: underline;
-            }
+    .DependencyItemCard-meta {
+      display: flex;
+      align-items: center;
+
+      .DependencyItemCard-submitter {
+        display: flex;
+        align-items: center;
+        margin-right: 10px;
+
+        .DependencyItemCard-avatar {
+          width: 20px;
+          height: 20px;
+          margin-right: 5px;
         }
+      }
     }
-    .DependencyItemCard-body {
-        margin-bottom: 10px;
-        flex-grow: 1;
-        .DependencyItemCard-description {
-            font-size: 0.9em;
-            color: @text-color;
-            line-height: 1.4;
-        }
-    }
-    .DependencyItemCard-footer {
-        font-size: 0.85em;
-        color: #777;
-        .DependencyItemCard-tags {
-            margin-bottom: 8px;
-            .DependencyItemCard-tag {
-                display: inline-block;
-                padding: 3px 8px;
-                margin-right: 5px;
-                margin-bottom: 5px;
-                border-radius: 3px;
-                font-size: 0.9em;
-                text-decoration: none;
-                &:hover {
-                    opacity: 0.8;
-                }
-            }
-            .DependencyItemCard-tagIcon {
-                margin-right: 3px;
-            }
-        }
-        .DependencyItemCard-meta {
-            display: flex;
-            align-items: center;
-            .DependencyItemCard-submitter {
-                display: flex;
-                align-items: center;
-                margin-right: 10px;
-                .DependencyItemCard-avatar {
-                    width: 20px;
-                    height: 20px;
-                    margin-right: 5px;
-                }
-            }
-        }
-    }
+  }
 }
 
 .SubmitDependencyModal {
-    .TagSelector {
-        display: flex;
-        flex-wrap: wrap; // 允许标签换行
-        gap: 8px; // 标签之间的间距
+  .TagSelector {
+    display: flex;
+    flex-wrap: wrap; // 允许标签换行
+    gap: 8px; // 标签之间的间距
 
-        .Button--tag {
-            // 默认样式 (未选中)
-            border: 1px solid #ddd; // 默认边框颜色
-            background-color: transparent;
-            color: #555; // 默认文字颜色
-            padding: 5px 10px;
-            font-size: 0.9em;
-            transition: background-color 0.2s, color 0.2s, border-color 0.2s; // 平滑过渡
+    span {
+      // 默认样式 (未选中)
+      background-color: transparent;
+      color: #555; // 默认文字颜色
+      font-size: 12px;
+      padding: 5px 10px;
+      line-height: 12px;
+      transition: background-color 0.2s, color 0.2s, border-color 0.2s; // 平滑过渡
+      border-radius: 3px;
+      &:hover {
+        background-color: #f5f5f5;
+        border-color: #ccc;
+      }
 
-            &:hover {
-                background-color: #f5f5f5;
-                border-color: #ccc;
-            }
+      &.active {
+        // 选中时的样式 - 优先使用标签自定义颜色
+        // JS中通过 style 属性设置了 backgroundColor 和 color
+        border-color: transparent; // 选中时可以隐藏边框或使用背景色作为边框
+        font-weight: bold;
 
-            &.active {
-                // 选中时的样式 - 优先使用标签自定义颜色
-                // JS中通过 style 属性设置了 backgroundColor 和 color
-                border-color: transparent; // 选中时可以隐藏边框或使用背景色作为边框
-                font-weight: bold;
+        // 如果标签没有自定义颜色，这里的样式会被 JS 中的 style 覆盖
+        // 但可以作为备用或调整其他属性
+        // background-color: @primary-color;
+        // color: white;
+      }
 
-                // 如果标签没有自定义颜色，这里的样式会被 JS 中的 style 覆盖
-                // 但可以作为备用或调整其他属性
-                // background-color: @primary-color;
-                // color: white;
-            }
-
-            .Button-icon {
-                margin-right: 5px;
-            }
-        }
+      .Button-icon {
+        margin-right: 5px;
+      }
     }
+  }
 }
 ```
 
@@ -2394,6 +1961,8 @@ shebaoting-dependency-collector:
       tag_color_icon: Color & Icon
       tag_item_count: Items
       actions: Actions
+      tag_color: Color      # 新增或修改
+      tag_icon: Icon       # 新增
     actions:
       create_tag: Create Tag
       approve: Approve
@@ -2466,10 +2035,13 @@ shebaoting-dependency-collector:
       tag_color_icon: 颜色与图标
       tag_item_count: 条目数
       actions: 操作
+      tag_color: 颜色      # 新增或修改
+      tag_icon: 图标       # 新增
     actions:
       create_tag: 创建标签 # “创建标签”按钮文本
       approve: 批准 # “批准”按钮文本
       reject: 拒绝 # “拒绝”按钮文本
+      delete_button: 删除
     confirm:
       approve: 确定要批准依赖项 # 批准确认提示
       reject: 确定要拒绝依赖项 # 拒绝确认提示
@@ -2591,22 +2163,50 @@ use Shebaoting\DependencyCollector\Models\DependencyItem;
 
 class DependencyItemPolicy extends AbstractPolicy
 {
+    /**
+     * 决定谁可以编辑一个依赖项。
+     * 管理员总是可以编辑。
+     * 提交者只能编辑处于 'pending' 状态的依赖项。
+     */
     public function edit(User $actor, DependencyItem $item)
     {
+        // 管理员或版主（拥有 moderate 权限）可以编辑任何状态的条目
         if ($actor->hasPermission('dependency-collector.moderate')) {
             return $this->allow();
         }
 
-        // Optional: Allow user to edit their own PENDING submission
-        // if ($item->status === 'pending' && $actor->id === $item->user_id && $actor->hasPermission('dependency-collector.editOwnPending')) {
-        //     return $this->allow();
-        // }
+        // 提交者只能编辑自己提交的，并且状态为 'pending' 的条目
+        if ($item->status === 'pending' && $actor->id === $item->user_id && $actor->hasPermission('dependency-collector.submit')) {
+            // 确保用户至少有提交权限才能编辑自己的
+            return $this->allow();
+        }
 
         return $this->deny();
     }
 
-    // Add other abilities like 'approve', 'reject', 'delete' if you want granular control
-    // Otherwise, 'dependency-collector.moderate' can cover these in the controllers.
+    /**
+     * 决定谁可以批准/取消批准一个依赖项。
+     * 只有拥有 moderate 权限的用户可以。
+     */
+    public function approve(User $actor, DependencyItem $item)
+    {
+        if ($actor->hasPermission('dependency-collector.moderate')) {
+            return $this->allow();
+        }
+        return $this->deny();
+    }
+
+    public function delete(User $actor, DependencyItem $item)
+    {
+        if ($actor->hasPermission('dependency-collector.moderate')) {
+            return $this->allow();
+        }
+        // 可选：允许用户删除自己未审核的提交
+        if ($item->status === 'pending' && $actor->id === $item->user_id && $actor->hasPermission('dependency-collector.submit')) {
+            return $this->allow();
+        }
+        return $this->deny();
+    }
 }
 ```
 
@@ -2703,12 +2303,11 @@ use Tobscure\JsonApi\Document;
 use Shebaoting\DependencyCollector\Models\DependencyTag;
 use Shebaoting\DependencyCollector\Api\Serializer\DependencyTagSerializer;
 use Shebaoting\DependencyCollector\Api\Validators\DependencyTagValidator;
-use Illuminate\Support\Str; // 用于生成 slug
+use Illuminate\Support\Str;
 
 class CreateDependencyTagController extends AbstractCreateController
 {
     public $serializer = DependencyTagSerializer::class;
-
     protected $validator;
 
     public function __construct(DependencyTagValidator $validator)
@@ -2722,15 +2321,19 @@ class CreateDependencyTagController extends AbstractCreateController
         $data = Arr::get($request->getParsedBody(), 'data', []);
         $attributes = Arr::get($data, 'attributes', []);
 
-        // 权限检查
         $actor->assertCan('dependency-collector.manageTags');
 
-        // 如果 slug 未提供，则根据 name 自动生成
         if (empty($attributes['slug']) && !empty($attributes['name'])) {
             $attributes['slug'] = Str::slug($attributes['name']);
         }
 
-        // 验证数据
+        // --- 设置默认图标 ---
+        $icon = Arr::get($attributes, 'icon');
+        if (empty($icon)) {
+            $attributes['icon'] = 'fas fa-code'; // 如果为空，设置默认值
+        }
+        // --- 默认图标设置结束 ---
+
         $this->validator->assertValid($attributes);
 
         $tag = DependencyTag::build(
@@ -2738,15 +2341,10 @@ class CreateDependencyTagController extends AbstractCreateController
             Arr::get($attributes, 'slug'),
             Arr::get($attributes, 'description'),
             Arr::get($attributes, 'color'),
-            Arr::get($attributes, 'icon')
+            Arr::get($attributes, 'icon') // 使用可能已设置了默认值的 icon
         );
 
-        // 如果有其他需要在保存前处理的逻辑，可以在这里添加
-        // 例如，触发事件：$this->events->dispatch(new Events\TagWillBeCreated($tag, $actor, $data));
-
         $tag->save();
-
-        // 例如，触发事件：$this->events->dispatch(new Events\TagWasCreated($tag, $actor, $data));
 
         return $tag;
     }
@@ -3090,7 +2688,7 @@ class ListDependencyTagsController extends AbstractListController
 
 namespace Shebaoting\DependencyCollector\Api\Controller;
 
-use Flarum\Api\Controller\AbstractShowController; // Use Show as base for PATCH
+use Flarum\Api\Controller\AbstractShowController;
 use Flarum\Http\RequestUtil;
 use Illuminate\Support\Arr;
 use Psr\Http\Message\ServerRequestInterface;
@@ -3099,13 +2697,12 @@ use Shebaoting\DependencyCollector\Models\DependencyItem;
 use Shebaoting\DependencyCollector\Api\Serializer\DependencyItemSerializer;
 use Shebaoting\DependencyCollector\Api\Validators\DependencyItemValidator;
 use Carbon\Carbon;
+use Flarum\Foundation\ValidationException; // 用于抛出验证错误
 
 class UpdateDependencyItemController extends AbstractShowController
 {
     public $serializer = DependencyItemSerializer::class;
-
     public $include = ['user', 'tags', 'approver'];
-
     protected $validator;
 
     public function __construct(DependencyItemValidator $validator)
@@ -3122,61 +2719,98 @@ class UpdateDependencyItemController extends AbstractShowController
 
         $item = DependencyItem::findOrFail($itemId);
 
-        // Check permissions
-        if ($actor->id === $item->user_id && $item->status === 'pending' && $actor->can('editOwnPending', $item)) {
-            // Allow user to edit their own pending submission (limited fields)
-            // This is an optional feature, if implemented, create 'editOwnPending' permission
-        } elseif ($actor->can('dependency-collector.moderate')) {
-            // Admin/Moderator can edit more
-        } else {
-            $actor->assertPermission(false); // Deny access
-        }
+        // --- 权限检查: 使用 Policy ---
+        // 检查用户是否有编辑权限
+        $actor->assertCan('edit', $item);
+        // --- 权限检查结束 ---
 
-        $this->validator->assertValid(array_merge($attributes, ['is_update' => true]));
+        // 准备验证数据
+        $validationAttributes = $attributes;
+        // 将模型实例传递给验证器，以便它可以忽略 unique 规则中的当前项（如果需要）
+        $this->validator->setItem($item); // 假设验证器有 setItem 方法
+        $this->validator->assertValid($validationAttributes);
 
-        if (isset($attributes['title'])) {
+        $isDirty = false; // 标记是否有更改
+
+        // --- 更新属性 ---
+        if (isset($attributes['title']) && $attributes['title'] !== $item->title) {
             $item->title = $attributes['title'];
+            $isDirty = true;
         }
-        if (isset($attributes['link'])) {
+        if (isset($attributes['link']) && $attributes['link'] !== $item->link) {
             $item->link = $attributes['link'];
+            $isDirty = true;
         }
-        if (isset($attributes['description'])) {
+        if (isset($attributes['description']) && $attributes['description'] !== $item->description) {
             $item->description = $attributes['description'];
+            $isDirty = true;
         }
+        // --- 属性更新结束 ---
 
-        // Admin/Moderator specific updates
-        if ($actor->can('dependency-collector.moderate')) {
-            if (isset($attributes['status']) && in_array($attributes['status'], ['approved', 'rejected', 'pending'])) {
-                if ($item->status !== 'approved' && $attributes['status'] === 'approved') {
-                    $item->approved_at = Carbon::now();
-                    $item->approver_user_id = $actor->id;
-                } elseif ($attributes['status'] !== 'approved') {
-                    $item->approved_at = null;
-                    $item->approver_user_id = null;
+        // --- 处理状态变更 (仅当 status 属性被传递时) ---
+        if (isset($attributes['status'])) {
+            $newStatus = $attributes['status'];
+            // 检查用户是否有权更改状态 (批准/取消批准)
+            if ($newStatus !== $item->status) {
+                $actor->assertCan('approve', $item); // 检查是否有批准权限
+
+                if (in_array($newStatus, ['approved', 'pending', 'rejected'])) {
+                    if ($newStatus === 'approved' && $item->status !== 'approved') {
+                        $item->approved_at = Carbon::now();
+                        $item->approver_user_id = $actor->id;
+                    } elseif ($newStatus !== 'approved') {
+                        // 如果状态变为非 approved，清除批准信息
+                        $item->approved_at = null;
+                        $item->approver_user_id = null;
+                    }
+                    $item->status = $newStatus;
+                    $isDirty = true;
+                } else {
+                    // 如果传递的状态值无效
+                    throw new ValidationException(['status' => 'Invalid status value provided.']);
                 }
-                $item->status = $attributes['status'];
             }
         }
+        // --- 状态变更处理结束 ---
 
-        // Handle tags update
+        // --- 处理标签更新 ---
         $relationships = Arr::get($data, 'relationships', []);
         if (isset($relationships['tags']['data'])) {
-            $tagIds = [];
+            $newTagIds = [];
             foreach ($relationships['tags']['data'] as $tagData) {
                 if (isset($tagData['id'])) {
-                    $tagIds[] = $tagData['id'];
+                    $newTagIds[] = $tagData['id'];
                 }
             }
-            // Ensure at least one tag if admin is editing
-            if ($actor->can('dependency-collector.moderate') && empty($tagIds)) {
-                // throw new ValidationException(['tags' => 'At least one tag is required for approved items.']);
+
+            // 在同步之前获取当前的标签ID，用于比较是否有变化
+            $currentTagIds = $item->tags()->pluck('id')->all();
+            // 对两个数组进行排序，以便准确比较
+            sort($currentTagIds);
+            sort($newTagIds);
+
+            if ($currentTagIds !== $newTagIds) {
+                // 验证标签ID是否存在等 (可以在 Validator 中完成)
+                // 确保至少有一个标签，如果这是业务规则
+                if (empty($newTagIds) && $item->status === 'approved') { // 例如：已批准的项必须有标签
+                    // throw new ValidationException(['tags' => 'An approved item must have at least one tag.']);
+                }
+                $item->tags()->sync($newTagIds);
+                $isDirty = true;
             }
-            $item->tags()->sync($tagIds);
+        }
+        // --- 标签更新处理结束 ---
+
+        // 只有在实际发生更改时才保存
+        if ($isDirty) {
+            // 如果需要触发事件
+            // $this->events->dispatch(new Events\ItemWillBeUpdated($item, $actor, $data));
+            $item->save();
+            // $this->events->dispatch(new Events\ItemWasUpdated($item, $actor, $data));
         }
 
 
-        $item->save();
-
+        // 控制器最终会加载关联关系并使用序列化器返回更新后的模型
         return $item;
     }
 }
@@ -3189,7 +2823,7 @@ class UpdateDependencyItemController extends AbstractShowController
 
 namespace Shebaoting\DependencyCollector\Api\Controller;
 
-use Flarum\Api\Controller\AbstractShowController; // 基类通常用于获取单个资源，这里用于 PATCH
+use Flarum\Api\Controller\AbstractShowController;
 use Flarum\Http\RequestUtil;
 use Illuminate\Support\Arr;
 use Psr\Http\Message\ServerRequestInterface;
@@ -3197,12 +2831,11 @@ use Tobscure\JsonApi\Document;
 use Shebaoting\DependencyCollector\Models\DependencyTag;
 use Shebaoting\DependencyCollector\Api\Serializer\DependencyTagSerializer;
 use Shebaoting\DependencyCollector\Api\Validators\DependencyTagValidator;
-use Illuminate\Support\Str; // 用于生成 slug
+// use Illuminate\Support\Str; // 不再需要
 
 class UpdateDependencyTagController extends AbstractShowController
 {
     public $serializer = DependencyTagSerializer::class;
-
     protected $validator;
 
     public function __construct(DependencyTagValidator $validator)
@@ -3217,55 +2850,50 @@ class UpdateDependencyTagController extends AbstractShowController
         $data = Arr::get($request->getParsedBody(), 'data', []);
         $attributes = Arr::get($data, 'attributes', []);
 
-        // 权限检查
         $actor->assertCan('dependency-collector.manageTags');
 
         $tag = DependencyTag::findOrFail($tagId);
 
-        // 如果 slug 未提供且 name 发生变化，则根据新的 name 自动重新生成 slug
-        if (isset($attributes['name']) && $attributes['name'] !== $tag->name && empty($attributes['slug'])) {
-            $attributes['slug'] = Str::slug($attributes['name']);
-        }
+        // 移除自动生成 slug 的逻辑
 
-        // 在验证之前，将模型ID传递给验证器，以便在 unique 规则中忽略当前模型
-        // $this->validator->setRules(['id' => $tag->id]); // 这是一个示例，具体实现取决于验证器如何接收ID
-        // 或者，你可以在 DependencyTagValidator 中修改 getRules 方法，从 attributes 中获取 id (如果前端传递了)
-        // 或者，更标准的方式是，unique 规则通常会自动处理 ignore(this->model->id) 的情况，如果验证器与模型绑定。
-        // Flarum 的 AbstractValidator 可能需要你显式处理 ignore。
-        // 对于 unique:table,column,except,idColumn
-        // 我们需要在 DependencyTagValidator 的 getRules 中处理 `ignore($tagIdToIgnore)`
-
-        // 为了使 unique 验证忽略当前记录，我们需要在验证器中获取当前标签的 ID
-        // 一种方法是在验证器构造函数中注入请求，或者像下面这样传递
         $validationAttributes = $attributes;
-        if (!isset($validationAttributes['id'])) { // 确保ID在验证属性中，用于unique:ignore
+        if (!isset($validationAttributes['id'])) {
             $validationAttributes['id'] = $tag->id;
         }
         $this->validator->assertValid($validationAttributes);
 
-
-        if (isset($attributes['name'])) {
+        $isDirty = false;
+        if (isset($attributes['name']) && $attributes['name'] !== $tag->name) {
             $tag->name = $attributes['name'];
+            $isDirty = true;
         }
-        if (isset($attributes['slug'])) {
+        if (isset($attributes['slug']) && $attributes['slug'] !== $tag->slug) {
             $tag->slug = $attributes['slug'];
+            $isDirty = true;
         }
-        if (array_key_exists('description', $attributes)) { // array_key_exists 用于允许设置为空字符串或null
+        if (array_key_exists('description', $attributes) && $attributes['description'] !== $tag->description) {
             $tag->description = $attributes['description'];
+            $isDirty = true;
         }
-        if (array_key_exists('color', $attributes)) {
+        if (array_key_exists('color', $attributes) && $attributes['color'] !== $tag->color) {
             $tag->color = $attributes['color'];
+            $isDirty = true;
         }
-        if (array_key_exists('icon', $attributes)) {
-            $tag->icon = $attributes['icon'];
+        // --- 修改图标更新逻辑以包含默认值 ---
+        if (array_key_exists('icon', $attributes)) { // 检查请求中是否包含 'icon'
+            $newIcon = $attributes['icon'];
+            // 如果提供的值为空字符串或 null，则使用默认图标；否则使用提供的值
+            $finalIcon = empty($newIcon) ? 'fas fa-code' : $newIcon;
+            if ($finalIcon !== $tag->icon) {
+                $tag->icon = $finalIcon;
+                $isDirty = true;
+            }
         }
+        // --- 图标更新逻辑结束 ---
 
-        // 如果有其他需要在保存前处理的逻辑，可以在这里添加
-        // 例如，触发事件：$this->events->dispatch(new Events\TagWillBeUpdated($tag, $actor, $data));
-
-        $tag->save();
-
-        // 例如，触发事件：$this->events->dispatch(new Events\TagWasUpdated($tag, $actor, $data));
+        if ($isDirty) {
+            $tag->save();
+        }
 
         return $tag;
     }
@@ -3299,22 +2927,20 @@ class DependencyItemSerializer extends AbstractSerializer
             'title'        => $item->title,
             'link'         => $item->link,
             'description'  => $item->description,
-            'status'       => $item->status,
+            'status'       => $item->status, // 确保 status 始终被序列化
             'submittedAt'  => $this->formatDate($item->submitted_at),
             'approvedAt'   => $this->formatDate($item->approved_at),
-            'canEdit'      => $this->actor->can('edit', $item),
-            'canApprove'   => $this->actor->can('dependency-collector.moderate'),
-            // Add more attributes as needed
+            'canEdit'      => $this->actor->can('edit', $item), // 使用 Policy 检查
+            'canApprove'   => $this->actor->can('approve', $item), // 使用 Policy 检查
         ];
 
-        if ($this->actor->can('dependency-collector.moderate') || ($this->actor->id === $item->user_id && $item->status === 'pending')) {
-            // Expose more details if user can moderate or is the owner of a pending item
-        }
-
+        // 注意：之前的 moderate 检查被合并到了 canApprove/canEdit 中，
+        // status 属性现在总是包含的，前端可以根据 status 和 canEdit/canApprove 来决定显示什么。
 
         return $attributes;
     }
 
+    // user(), approver(), tags() 方法保持不变
     protected function user($item): ?Relationship
     {
         return $this->hasOne($item, BasicUserSerializer::class);
@@ -3460,54 +3086,88 @@ namespace Shebaoting\DependencyCollector\Api\Validators;
 use Flarum\Foundation\AbstractValidator;
 use Illuminate\Validation\Rule;
 use Shebaoting\DependencyCollector\Models\DependencyTag;
-use Illuminate\Support\Arr;
 
-
+/**
+ * DependencyTagValidator 类。
+ * 用于验证创建和更新 DependencyTag 时的数据。
+ * 继承自 Flarum 的 AbstractValidator，可以利用其提供的功能。
+ */
 class DependencyTagValidator extends AbstractValidator
 {
-    // 移除 $model 属性声明，因为 AbstractValidator 没有定义它
-    // protected $model; // 移除或注释掉这行
-
-    // 使用一个内部属性来存储可能存在的模型实例（主要用于更新）
-    protected $tagInstance = null;
-
     /**
-     * 可选方法：允许控制器设置正在更新的模型实例
-     * @param DependencyTag|null $tag
+     * 获取适用于创建或更新 DependencyTag 的验证规则。
+     *
+     * @return array<string, \Illuminate\Contracts\Validation\Rule|string|array<string|\Illuminate\Contracts\Validation\Rule>>
+     * 返回一个包含验证规则的关联数组。
+     * 键是属性名 (例如 'name', 'slug')。
+     * 值可以是字符串形式的规则 (例如 'required|string|max:100')，
+     * 也可以是包含多个规则字符串或 Rule 对象的数组。
      */
-    public function setInstance(?DependencyTag $tag)
+    protected function getRules(): array
     {
-        $this->tagInstance = $tag;
-    }
-
-    protected function getRules()
-    {
-        // 确定在 unique 检查时要忽略的 ID
-        $tagIdToIgnore = null;
-        if ($this->tagInstance && $this->tagInstance->exists) {
-            // 如果我们设置了实例（通常在更新时），则使用其实例 ID
-            $tagIdToIgnore = $this->tagInstance->id;
-        }
-        // 注意：对于创建操作，$tagIdToIgnore 将保持为 null，这是正确的
+        // 尝试从 AbstractValidator 的 $model 属性获取当前正在操作的模型实例。
+        // 这个属性通常在处理更新请求时由 Flarum 核心或相关控制器设置。
+        // 如果是创建操作 ($this->model 不存在或为 null)，则 $modelToIgnore 为 null。
+        // Rule::unique(...)->ignore(null) 不会添加忽略条件，这是创建时所需的行为。
+        // 如果是更新操作 ($this->model 是当前标签实例)，ignore() 会使用该实例的主键来排除自身。
+        $modelToIgnore = $this->model ?? null;
 
         return [
+            // 规则 for 'name' 字段
             'name' => [
-                'required',
-                'string',
-                'max:100',
-                // 使用 Rule::unique 来构建唯一性规则，并指定要忽略的 ID
-                Rule::unique((new DependencyTag)->getTable(), 'name')->ignore($tagIdToIgnore)
+                'sometimes', // 表示只有当 'name' 字段在输入数据中存在时，才应用后续规则
+                'required',  // 如果存在，则该字段不能为空
+                'string',    // 值必须是字符串类型
+                'max:100',   // 字符串最大长度为 100 个字符
+                // 使用 Rule::unique 来确保名称在数据库表中是唯一的
+                Rule::unique((new DependencyTag)->getTable(), 'name') // 指定表名和列名
+                    ->ignore($modelToIgnore), // 在更新时忽略当前模型实例，防止误判为重复
             ],
+            // 规则 for 'slug' 字段
             'slug' => [
-                'required',
-                'string',
-                'max:100',
-                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-                Rule::unique((new DependencyTag)->getTable(), 'slug')->ignore($tagIdToIgnore)
+                'sometimes', // 仅当 'slug' 存在时验证
+                'required',  // 如果存在，则不能为空
+                'string',    // 必须是字符串
+                'max:100',   // 最大长度 100
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/', // 验证 slug 格式 (小写字母, 数字, 连字符)
+                // 确保 slug 也是唯一的，同样忽略当前模型
+                Rule::unique((new DependencyTag)->getTable(), 'slug')
+                    ->ignore($modelToIgnore),
             ],
-            'description' => ['nullable', 'string', 'max:255'],
-            'color' => ['nullable', 'string', 'max:7', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
-            'icon' => ['nullable', 'string', 'max:100'],
+            // 规则 for 'description' 字段
+            'description' => [
+                'sometimes', // 仅当 'description' 存在时验证
+                'nullable',  // 允许值为 null
+                'string',    // 必须是字符串
+                'max:255',   // 最大长度 255
+            ],
+            // 规则 for 'color' 字段
+            'color' => [
+                'sometimes', // 仅当 'color' 存在时验证
+                'nullable',  // 允许值为 null
+                'string',    // 必须是字符串
+                'max:7',     // 最大长度 7 (如 #RRGGBB)
+                'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/', // 验证 16 进制颜色格式
+            ],
+            // 规则 for 'icon' 字段
+            'icon' => [
+                'sometimes', // 仅当 'icon' 存在时验证
+                'nullable',  // 允许值为 null
+                'string',    // 必须是字符串
+                'max:100',   // 最大长度 100 (FontAwesome 图标类名)
+            ],
+        ];
+    }
+
+    // 你可以根据需要重写 getMessages() 方法来自定义错误消息
+    protected function getMessages()
+    {
+        return [
+            'name.required' => '标签名称不能为空。',
+            'name.unique' => '该标签名称已被使用。',
+            'slug.unique' => '该标签标识符已被使用。',
+            'slug.regex' => '标签标识符只能包含小写字母、数字和连字符。',
+            'color.regex' => '颜色必须是有效的十六进制代码 (例如 #FF0000)。',
         ];
     }
 }

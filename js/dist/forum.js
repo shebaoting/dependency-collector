@@ -102,11 +102,13 @@ var DependencyItem = /*#__PURE__*/function (_Model) {
     _this.canEdit = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canEdit');
     // 确保 canEdit 属性存在
     _this.canApprove = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canApprove');
+    // 确保 canApprove 属性存在
+    _this.canDelete = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canDelete');
     return _this;
   }
   (0,_babel_runtime_helpers_esm_inheritsLoose__WEBPACK_IMPORTED_MODULE_0__["default"])(DependencyItem, _Model);
   var _proto = DependencyItem.prototype;
-  // 确保 canApprove 属性存在
+  // 确保存储从后端接收的 canDelete 权限
   _proto.shortDescription = function shortDescription(length) {
     if (length === void 0) {
       length = 100;
@@ -192,7 +194,7 @@ __webpack_require__.r(__webpack_exports__);
 
 // js/src/forum/components/DependencyItemCard.js
 
- // Link 组件在这里使用
+
 
 
 
@@ -233,15 +235,10 @@ var DependencyItemCard = /*#__PURE__*/function (_Component) {
     }, item.tags() && item.tags().map(function (tag) {
       return m((flarum_common_components_Link__WEBPACK_IMPORTED_MODULE_2___default()), {
         key: tag.id(),
-        className: "DependencyItemCard-tag"
-        // --- 核心修改在这里 ---
-        // 将路由参数键名从 'tag' (如果之前是错误的) 改为 'tagSlug'
-        ,
+        className: "DependencyItemCard-tag",
         href: app.route('dependency-collector.forum.index', {
           tagSlug: tag.slug()
-        })
-        // --- 修改结束 ---
-        ,
+        }),
         style: {
           backgroundColor: tag.color(),
           color: _this.getTextColorForBackground(tag.color())
@@ -270,12 +267,18 @@ var DependencyItemCard = /*#__PURE__*/function (_Component) {
       icon: item.status() === 'approved' ? 'fas fa-times' : 'fas fa-check',
       onclick: this.toggleApproval.bind(this),
       "aria-label": item.status() === 'approved' ? app.translator.trans('shebaoting-dependency-collector.forum.item.unapprove_button') : app.translator.trans('shebaoting-dependency-collector.forum.item.approve_button')
+    }), item.canDelete() && m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_7___default()), {
+      className: "Button Button--icon Button--link Button--danger" // 使用危险样式
+      ,
+      icon: "fas fa-trash-alt" // 删除图标
+      ,
+      onclick: this.deleteItem.bind(this) // 绑定删除方法
+      ,
+      "aria-label": app.translator.trans('shebaoting-dependency-collector.forum.item.delete_button_label') // Aria 标签
     })))));
-  }
-
-  // editItem, toggleApproval, getTextColorForBackground 方法保持不变...
-  ;
+  };
   _proto.editItem = function editItem() {
+    // 编辑逻辑保持不变
     app.modal.show(_EditDependencyModal__WEBPACK_IMPORTED_MODULE_8__["default"], {
       item: this.attrs.item,
       onsave: this.attrs.onchange
@@ -283,6 +286,7 @@ var DependencyItemCard = /*#__PURE__*/function (_Component) {
   };
   _proto.toggleApproval = function toggleApproval() {
     var _this2 = this;
+    // 批准/取消批准逻辑保持不变
     var item = this.attrs.item;
     var newStatus = item.status() === 'approved' ? 'pending' : 'approved';
     item.save({
@@ -294,7 +298,47 @@ var DependencyItemCard = /*#__PURE__*/function (_Component) {
       console.error('Error toggling approval status:', error);
     });
   };
+  _proto.deleteItem = function deleteItem() {
+    var _this3 = this;
+    var item = this.attrs.item;
+
+    // --- 修改: 使用原生 confirm 替代 Flarum Modal ---
+    // 显示原生 JavaScript 确认对话框
+    var confirmed = window.confirm(
+    // 从 locale 文件获取确认文本
+    app.translator.trans('shebaoting-dependency-collector.forum.item.delete_confirmation_text'));
+
+    // 只有当用户点击 "确定" 时 (confirmed 为 true)，才执行删除操作
+    if (confirmed) {
+      // 显示加载状态或禁用按钮可以在这里添加，但对于原生 confirm 比较困难，暂时省略
+      // this.loading = true; // 如果有加载状态管理
+      // m.redraw();
+
+      item["delete"]().then(function () {
+        // 如果父组件提供了 onchange 回调 (例如列表页刷新), 调用它
+        if (_this3.attrs.onchange) {
+          _this3.attrs.onchange();
+        }
+        // 通常删除后需要重绘界面
+        // 注意：如果 onchange 已经触发了列表页的重载，这里的 redraw 可能不需要
+        // 但保留通常是安全的
+        m.redraw();
+      })["catch"](function (error) {
+        console.error('Error deleting item:', error);
+        // 显示错误提示
+        app.alerts.show({
+          type: 'error'
+        }, app.translator.trans('core.lib.error.generic_message'));
+      })["finally"](function () {
+        // 结束加载状态（如果添加了）
+        // this.loading = false;
+        // m.redraw();
+      });
+    }
+    // --- 修改结束 ---
+  };
   _proto.getTextColorForBackground = function getTextColorForBackground(hexColor) {
+    // 此方法保持不变
     if (!hexColor) return 'white';
     hexColor = hexColor.replace('#', '');
     if (hexColor.length === 3) {
@@ -344,12 +388,9 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-// listItems 不再需要，因为我们手动构建列表
-// import listItems from 'flarum/common/helpers/listItems';
+// Link 导入是好的实践，即使当前没有直接使用实例
 
 
-// 不再需要引入 IndexPage 来获取 sidebarItems
-// import IndexPage from 'flarum/forum/components/IndexPage';
 var DependencyListPage = /*#__PURE__*/function (_Page) {
   function DependencyListPage() {
     return _Page.apply(this, arguments) || this;
@@ -359,27 +400,50 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
   _proto.oninit = function oninit(vnode) {
     _Page.prototype.oninit.call(this, vnode);
     console.log('DependencyListPage oninit'); // 调试日志
-    this.loading = true;
+
+    this.loadingItems = true; // 依赖项列表的加载状态
+    this.loadingTags = true; // 标签列表的加载状态
+    this.loadingMore = false; // “加载更多”按钮的加载状态
     this.items = [];
-    this.tags = [];
+    this.tags = []; // 初始化为空数组，避免渲染时出错
     this.moreResults = false;
-    this.currentTagFilter = m.route.param('tagSlug'); // 直接从路由参数获取
+    // 初始化 currentTagFilter，确保首次加载时使用正确的路由参数
+    this.currentTagFilter = m.route.param('tagSlug') || null; // 使用 null 代替 undefined
 
-    this.loadResults();
+    // 在初始化时同时开始加载标签和依赖项
     this.loadTags();
-  }
-
-  // 添加 oncreate 生命周期方法，用于设置页面标题
-  ;
+    this.loadResults(0); // 加载第一页依赖项
+  };
   _proto.oncreate = function oncreate(vnode) {
     _Page.prototype.oncreate.call(this, vnode);
     app.setTitle(app.translator.trans('shebaoting-dependency-collector.forum.nav_title'));
-    app.setTitleCount(0); // 清除通知计数（如果适用）
+    app.setTitleCount(0); // 清除页面标题的计数（如果有）
+  }
+
+  // 使用 onbeforeupdate 来检测路由参数的变化
+  ;
+  _proto.onbeforeupdate = function onbeforeupdate(vnode, old) {
+    _Page.prototype.onbeforeupdate.call(this, vnode, old);
+    var newTagFilter = m.route.param('tagSlug') || null; // 获取新的路由参数
+
+    // 检查路由参数是否真的发生了变化
+    if (newTagFilter !== this.currentTagFilter) {
+      console.log('Tag filter changed from', this.currentTagFilter, 'to', newTagFilter); // 调试日志
+      this.currentTagFilter = newTagFilter; // 更新组件内部的状态以匹配路由
+      this.loadResults(0); // 仅重新加载依赖项列表的第一页
+      // 返回 false 可以阻止 Mithril 的默认重绘，因为 loadResults 会在其 finally 块中调用 m.redraw()
+      // 这可以避免潜在的重复渲染或状态不一致。
+      return false;
+    }
+
+    // 如果路由参数没有变化，允许 Mithril 进行正常的重绘
+    return true;
   };
   _proto.view = function view() {
     var _app$forum,
       _this = this;
-    console.log('DependencyListPage view rendering. Loading:', this.loading, 'Items:', this.items.length, 'Tags:', this.tags.length); // 调试日志
+    // 调试日志，展示当前渲染时的状态
+    console.log('DependencyListPage view rendering. LoadingItems:', this.loadingItems, 'LoadingTags:', this.loadingTags, 'Items:', this.items.length, 'Tags:', this.tags.length, 'CurrentTag:', this.currentTagFilter);
     return m("div", {
       className: "container"
     }, m("div", {
@@ -390,12 +454,14 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
       className: "DependencyListPage"
     }, m("li", {
       className: "item-newDiscussion App-primaryControl"
-    }, app.session.user && ((_app$forum = app.forum) == null ? void 0 : _app$forum.attribute('canSubmitDependencyCollectorItem')) && m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
-      className: "Button Button--primary",
+    }, app.session.user && ((_app$forum = app.forum) == null ? void 0 : _app$forum.attribute('canSubmitDependencyCollectorItem')) && m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default())
+    // 使用 Flarum 核心样式类以保持一致性
+    , {
+      className: "Button Button--primary IndexPage-newDiscussion",
       icon: "fas fa-plus",
       onclick: function onclick() {
         return app.modal.show(_SubmitDependencyModal__WEBPACK_IMPORTED_MODULE_6__["default"], {
-          // 传递一个回调，以便在成功提交后刷新列表
+          // 传递回调，提交成功后刷新依赖项列表
           onsubmit: function onsubmit() {
             return _this.loadResults(0);
           }
@@ -405,161 +471,216 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
       className: "item-nav DependencyListPage-sidebar"
     }, m("div", {
       className: "ButtonGroup Dropdown dropdown App-titleControl Dropdown--select itemCount9"
-    }, m("ul", {
-      className: " DependencyListTags"
+    }, this.loadingTags ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) :
+    // 使用 Flarum 核心标签导航样式
+    m("ul", {
+      className: "DependencyListTags"
     }, m("li", {
-      className: !this.currentTagFilter ? 'active item-allDiscussions' : 'item-allDiscussions'
+      className: 'TagLink ' + (!this.currentTagFilter ? 'active item-allDiscussions' : 'item-allDiscussions')
     }, m("a", {
-      href: "#",
+      // 生成指向 "全部标签" 的路由 URL
+      href: app.route('dependency-collector.forum.index'),
       onclick: function onclick(e) {
-        e.preventDefault();
-        m.route.set(app.route('dependency-collector.forum.index'));
+        e.preventDefault(); // 阻止默认的页面跳转
+        // 只有当当前过滤器不是 "全部" 时才进行路由切换
+        if (_this.currentTagFilter) {
+          m.route.set(app.route('dependency-collector.forum.index'));
+        }
       }
-    }, app.translator.trans('shebaoting-dependency-collector.forum.list.all_tags'))), this.tags && this.tags.map(function (tag // 添加 this.tags 检查
-    ) {
+    }, m("span", {
+      className: "TagLink-name"
+    }, app.translator.trans('shebaoting-dependency-collector.forum.list.all_tags')))), this.tags && this.tags.length > 0 ? this.tags.map(function (tag) {
       return m("li", {
         key: tag.id(),
-        className: _this.currentTagFilter === tag.slug() ? 'active item-allDiscussions' : 'item-allDiscussions'
+        className: 'TagLink ' + (_this.currentTagFilter === tag.slug() ? 'active item-allDiscussions' : 'item-allDiscussions')
       }, m("a", {
-        href: "#",
+        // 生成指向特定标签过滤的路由 URL
+        href: app.route('dependency-collector.forum.index', {
+          tagSlug: tag.slug()
+        }),
         onclick: function onclick(e) {
-          e.preventDefault();
-          m.route.set(app.route('dependency-collector.forum.index', {
-            tagSlug: tag.slug()
-          }));
+          e.preventDefault(); // 阻止默认跳转
+          // 只有当点击的不是当前已选标签时才进行路由切换
+          if (_this.currentTagFilter !== tag.slug()) {
+            m.route.set(app.route('dependency-collector.forum.index', {
+              tagSlug: tag.slug()
+            }));
+          }
         }
       }, tag.icon() && m("i", {
-        className: tag.icon() + ' DependencyListTag-icon'
-      }), tag.name()));
-    })))))), m("div", {
-      className: "IndexPage-results DependencyListPage"
+        className: tag.icon() + ' TagLink-icon'
+      }), m("span", {
+        className: "TagLink-name"
+      }, tag.name())));
+    }) :
+    // 如果标签加载完成但列表为空，显示提示信息
+    !this.loadingTags && m("li", {
+      className: "TagLink disabled"
+    }, m("span", {
+      className: "TagLink-name"
+    }, app.translator.trans('shebaoting-dependency-collector.forum.list.no_tags')))))))), m("div", {
+      className: "IndexPage-results sideNavOffset DependencyListPage"
     }, m("div", {
       className: "DependencyListPage-body"
-    }, this.loading && this.items.length === 0 ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) : m("div", {
+    }, this.loadingItems && this.items.length === 0 ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) :
+    // 依赖项列表容器
+    m("div", {
       className: "DependencyList"
-    }, this.items && this.items.map(function (item // 添加 this.items 检查
-    ) {
+    }, this.items && this.items.length > 0 ?
+    // 遍历并渲染每个依赖项卡片
+    this.items.map(function (item) {
       return m(_DependencyItemCard__WEBPACK_IMPORTED_MODULE_4__["default"], {
         item: item,
         key: item.id(),
         onchange: function onchange() {
           return _this.loadResults(0);
         }
-      }) // 传递 onchange
-      ;
-    })), !this.loading && this.items.length === 0 && m("p", null, app.translator.trans('shebaoting-dependency-collector.forum.list.empty_text')), this.moreResults && !this.loading && m("div", {
+      });
+    }) :
+    // 如果依赖项加载完成但列表为空，显示空状态提示
+    !this.loadingItems && m("p", null, app.translator.trans('shebaoting-dependency-collector.forum.list.empty_text'))), this.moreResults && m("div", {
       style: "text-align: center; margin-top: 10px;"
     }, m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
       className: "Button",
-      onclick: this.loadMore.bind(this),
-      disabled: this.loadingMore
+      onclick: this.loadMore.bind(this)
+      // 使用 loading 属性在加载更多时显示加载状态并禁用按钮
+      ,
+      loading: this.loadingMore
     }, app.translator.trans('core.forum.discussion_list.load_more_button')))))));
   }
 
-  // --- loadResults 方法保持基本不变，但确保参数正确 ---
+  // 加载依赖项列表的方法
   ;
   _proto.loadResults = function loadResults(offset) {
     var _this2 = this;
     if (offset === void 0) {
       offset = 0;
     }
-    if (offset > 0) {
-      this.loadingMore = true;
+    // offset === 0 表示初始加载或过滤加载
+    if (offset === 0) {
+      this.loadingItems = true;
+      this.items = []; // 清空列表以准备显示新的结果或加载指示器
+      this.moreResults = false; // 重置是否有更多结果的状态
+      m.redraw(); // 立即重绘以反映加载状态
     } else {
-      this.loading = true;
-      this.items = []; // 清空项目以显示加载指示器
+      // offset > 0 表示加载更多
+      this.loadingMore = true;
+      m.redraw(); // 立即重绘以更新“加载更多”按钮状态
     }
-    m.redraw();
+
+    // 准备 API 请求参数
     var params = {
       page: {
         offset: offset
       },
       sort: '-approvedAt',
-      include: 'user,tags,approver' // 确保请求包含所需关系
+      // 按最新审核排序
+      include: 'user,tags,approver',
+      // 请求包含关联的用户、标签和审核者信息
+      filter: {} // 确保 filter 对象存在
     };
 
-    // 使用最新的路由参数来过滤
-    var currentTag = m.route.param('tagSlug');
-    if (currentTag) {
-      params.filter = {
-        tag: currentTag
-      };
-      this.currentTagFilter = currentTag; // 更新内部状态
-    } else {
-      this.currentTagFilter = null; // 清除内部状态
+    // 如果当前设置了标签过滤器，添加到请求参数中
+    if (this.currentTagFilter) {
+      params.filter.tag = this.currentTagFilter;
     }
-    console.log('Loading results with params:', params); // 调试日志
+    console.log('Loading results with params:', JSON.stringify(params)); // 调试日志
 
+    // 发起 API 请求
     return app.store.find('dependency-items', params).then(function (results) {
       console.log('Results loaded:', results); // 调试日志
+      // 检查返回的是否是数组 (Flarum store.find 成功时应返回模型数组)
       if (Array.isArray(results)) {
         var _results$payload;
         if (offset === 0) {
+          // 如果是初始加载，直接替换列表
           _this2.items = results;
         } else {
           var _this2$items;
+          // 如果是加载更多，追加到现有列表
           (_this2$items = _this2.items).push.apply(_this2$items, results);
         }
-        // 检查是否有下一页链接，并确保 results.payload 存在
+        // 检查 API 响应的 payload 中是否有下一页的链接
+        // store 返回的数组会附加一个 payload 对象包含元数据和链接
         _this2.moreResults = !!((_results$payload = results.payload) != null && (_results$payload = _results$payload.links) != null && _results$payload.next);
         console.log('More results:', _this2.moreResults); // 调试日志
       } else {
+        // 处理 API 返回格式不正确的情况
         console.error('API did not return an array for dependency-items:', results);
-        _this2.items = offset === 0 ? [] : _this2.items;
-        _this2.moreResults = false;
+        if (offset === 0) _this2.items = []; // 如果是初始加载，清空列表
+        _this2.moreResults = false; // 标记没有更多结果
       }
     })["catch"](function (error) {
+      // 处理 API 请求错误
       console.error('Error loading dependency items:', error);
-      _this2.items = offset === 0 ? [] : _this2.items;
-      _this2.moreResults = false;
+      if (offset === 0) _this2.items = []; // 错误发生时，如果是初始加载则清空列表
+      _this2.moreResults = false; // 标记没有更多结果
+      // 可以在这里向用户显示错误提示，例如使用 app.alerts.show
+      app.alerts.show({
+        type: 'error'
+      }, app.translator.trans('shebaoting-dependency-collector.forum.list.load_error'));
     })["finally"](function () {
-      _this2.loading = false;
+      // 无论请求成功或失败，都结束加载状态
+      _this2.loadingItems = false;
       _this2.loadingMore = false;
-      // 确保在 finally 中调用 redraw
-      m.redraw();
+      m.redraw(); // 确保最终的 UI 状态被渲染
       console.log('Loading finished, redraw called.'); // 调试日志
     });
   }
 
-  // --- loadTags 方法保持不变 ---
+  // 加载标签列表的方法
   ;
   _proto.loadTags = function loadTags() {
     var _this3 = this;
+    this.loadingTags = true;
+    // 可以选择在这里重绘以显示加载状态
+    // m.redraw();
+
+    // 发起 API 请求获取所有标签，按名称排序
     app.store.find('dependency-tags', {
       sort: 'name'
     }).then(function (tags) {
+      console.log('Tags loaded:', tags); // 调试日志
+      // 确保返回的是数组
       if (Array.isArray(tags)) {
         _this3.tags = tags;
       } else {
         console.error('API did not return an array for dependency-tags:', tags);
-        _this3.tags = [];
+        _this3.tags = []; // 保证 tags 是一个空数组
       }
-      // 移除这里的 redraw，让 loadResults 的 finally 处理
-      // m.redraw();
     })["catch"](function (error) {
+      // 处理错误
       console.error('Error loading tags:', error);
-      _this3.tags = [];
-      // 移除这里的 redraw
-      // m.redraw();
+      _this3.tags = []; // 出错时也保证 tags 是空数组
+      // 可以显示错误提示
+      app.alerts.show({
+        type: 'error'
+      }, app.translator.trans('shebaoting-dependency-collector.forum.list.load_tags_error'));
+    })["finally"](function () {
+      // 结束标签加载状态
+      _this3.loadingTags = false;
+      // 确保标签列表加载完成后 UI 能更新，即使依赖项列表还在加载
+      m.redraw();
+      console.log('Tag loading finished.'); // 调试日志
     });
   }
 
-  // --- loadMore 方法保持不变 ---
+  // 加载更多依赖项的方法
   ;
   _proto.loadMore = function loadMore() {
-    if (this.loadingMore || this.loading) return; // 增加 this.loading 检查
+    // 如果正在加载中（初始或更多），则不执行任何操作
+    if (this.loadingItems || this.loadingMore) return;
+    console.log('Loading more items...'); // 调试日志
+    // 调用 loadResults，使用当前项目数量作为下一页的偏移量
     this.loadResults(this.items.length);
   }
 
-  // --- 移除 onbeforeupdate 方法 ---
-  // onbeforeupdate(vnode, old) { ... }
-
-  // --- onremove 方法保持不变 ---
+  // 组件移除时的清理方法
   ;
   _proto.onremove = function onremove(vnode) {
     console.log('DependencyListPage onremove'); // 调试日志
     _Page.prototype.onremove.call(this, vnode);
-    // Clean up listeners or other resources if any
+    // 如果有事件监听器或其他需要清理的资源，在此处处理
   };
   return DependencyListPage;
 }((flarum_common_components_Page__WEBPACK_IMPORTED_MODULE_1___default()));
@@ -856,15 +977,16 @@ var SubmitDependencyModal = /*#__PURE__*/function (_Modal) {
       className: "TagSelector"
     }, this.availableTagsList.length > 0 ? this.availableTagsList.map(function (tag) {
       var isSelected = _this2.selectedTagIds().includes(tag.id());
-      return m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
-        className: flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_4___default()('Button Button--tag', isSelected && 'active'),
+      return m("span", {
+        className: flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_4___default()('colored text-contrast--dark', isSelected && 'active'),
         icon: tag.icon(),
         style: isSelected ? {
+          backgroundColor: '#d1f0da',
+          borderColor: tag.color() || '#ddd',
+          color: '#669974' || 0
+        } : {
           backgroundColor: tag.color() || '#4D698E',
           color: 'white'
-        } : {
-          borderColor: tag.color() || '#ddd',
-          color: tag.color() || 'inherit'
         },
         onclick: function onclick() {
           return _this2.toggleTag(tag.id());

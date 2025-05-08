@@ -8,6 +8,9 @@ shebaoting-dependency-collector:
       empty_text: 暂无依赖项。 # 列表为空时的提示文本
     item:
       pending_approval: 审核中 # 依赖项卡片上“待审核”状态的徽章
+      delete_button_label: 删除 # 删除按钮的 aria-label
+      delete_confirmation_title: 删除依赖项 # 删除确认弹窗标题
+      delete_confirmation_text: 您确定要删除此依赖项吗？此操作无法撤销。 # 删除确认弹窗内容
     modal:
       submit_title: 提交新的依赖项 # 提交依赖项弹窗的标题
       title_label: 标题 # 标题输入框的标签
@@ -68,3 +71,4 @@ shebaoting-dependency-collector:
       submit_label: 提交依赖项
       moderate_label: 管理依赖项 (批准、拒绝、编辑、删除)
       manage_tags_label: 管理插件标签
+      delete_label: 删除依赖项

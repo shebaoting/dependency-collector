@@ -76,18 +76,18 @@ export default class SubmitDependencyModal extends Modal {
                   this.availableTagsList.map((tag) => {
                     const isSelected = this.selectedTagIds().includes(tag.id());
                     return (
-                      <Button
-                        className={classList('Button Button--tag', isSelected && 'active')}
+                      <span
+                        className={classList('colored text-contrast--dark', isSelected && 'active')}
                         icon={tag.icon()}
                         style={
                           isSelected
-                            ? { backgroundColor: tag.color() || '#4D698E', color: 'white' }
-                            : { borderColor: tag.color() || '#ddd', color: tag.color() || 'inherit' }
+                            ? { backgroundColor: '#d1f0da', borderColor: tag.color() || '#ddd', color: '#669974' || 'inherit' }
+                            : { backgroundColor: tag.color() || '#4D698E', color: 'white' }
                         }
                         onclick={() => this.toggleTag(tag.id())}
                       >
                         {tag.name()}
-                      </Button>
+                      </span>
                     );
                   })
                 ) : (

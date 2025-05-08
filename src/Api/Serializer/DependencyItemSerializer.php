@@ -27,6 +27,7 @@ class DependencyItemSerializer extends AbstractSerializer
             'approvedAt'   => $this->formatDate($item->approved_at),
             'canEdit'      => $this->actor->can('edit', $item), // 使用 Policy 检查
             'canApprove'   => $this->actor->can('approve', $item), // 使用 Policy 检查
+            'canDelete'    => $this->actor->can('delete', $item), // 使用 Policy 检查删除权限
         ];
 
         // 注意：之前的 moderate 检查被合并到了 canApprove/canEdit 中，

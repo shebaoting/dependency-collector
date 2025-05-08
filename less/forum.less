@@ -1,10 +1,6 @@
 .DependencyListPage {
   margin-top: 30px;
 
-  .DependencyListPage-body {
-    display: flex;
-  }
-
   .DependencyListPage-sidebar {
     width: 200px; // Adjust as needed
     margin-right: 20px;
@@ -17,11 +13,12 @@
     .DependencyListTags {
       list-style: none;
       padding-left: 0;
-
+      display: flex;
+      flex-wrap: wrap;
       li {
         background-color: #e0f4e6;
-        margin-bottom: 5px;
-
+        margin: 5px;
+        box-sizing: border-box;
         &.active a {
           font-weight: bold;
           color: @primary-color;
@@ -65,17 +62,17 @@
     flex-grow: 1;
   }
 
-  .DependencyList {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); // Responsive grid
-    gap: 15px;
-  }
+.DependencyList {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
 }
 
 .DependencyItemCard {
   border-radius: 4px;
   padding: 15px;
-  background-color: #e0f4e6;
+  background-color: var(--hero-bg);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -177,15 +174,15 @@
     flex-wrap: wrap; // 允许标签换行
     gap: 8px; // 标签之间的间距
 
-    .Button--tag {
+    span {
       // 默认样式 (未选中)
-      border: 1px solid #ddd; // 默认边框颜色
       background-color: transparent;
       color: #555; // 默认文字颜色
+      font-size: 12px;
       padding: 5px 10px;
-      font-size: 0.9em;
+      line-height: 12px;
       transition: background-color 0.2s, color 0.2s, border-color 0.2s; // 平滑过渡
-
+      border-radius: 3px;
       &:hover {
         background-color: #f5f5f5;
         border-color: #ccc;

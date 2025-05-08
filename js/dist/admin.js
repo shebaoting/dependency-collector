@@ -521,7 +521,6 @@ flarum_admin_app__WEBPACK_IMPORTED_MODULE_0___default().initializers.add('shebao
     permission: 'dependency-collector.manageTags'
   }, 'moderate' // Or a new group like 'manage'
   );
-  // Add more permissions as needed
 });
 
 /***/ }),
@@ -586,11 +585,13 @@ var DependencyItem = /*#__PURE__*/function (_Model) {
     _this.canEdit = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canEdit');
     // 确保 canEdit 属性存在
     _this.canApprove = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canApprove');
+    // 确保 canApprove 属性存在
+    _this.canDelete = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canDelete');
     return _this;
   }
   (0,_babel_runtime_helpers_esm_inheritsLoose__WEBPACK_IMPORTED_MODULE_0__["default"])(DependencyItem, _Model);
   var _proto = DependencyItem.prototype;
-  // 确保 canApprove 属性存在
+  // 确保存储从后端接收的 canDelete 权限
   _proto.shortDescription = function shortDescription(length) {
     if (length === void 0) {
       length = 100;

@@ -25,6 +25,7 @@ EXCLUDE_PATHS_REL = [
     'README.md',
     'combined_project_code.md',
     'combine_all.py',
+    '.git',
     OUTPUT_FILE # 确保排除输出文件本身
 ]
 

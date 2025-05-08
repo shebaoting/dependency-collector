@@ -1,4 +1,5 @@
 <?php
+// src/Api/Controller/DeleteDependencyItemController.php
 
 namespace Shebaoting\DependencyCollector\Api\Controller;
 
@@ -15,9 +16,14 @@ class DeleteDependencyItemController extends AbstractDeleteController
         $actor = RequestUtil::getActor($request);
         $itemId = Arr::get($request->getQueryParams(), 'id');
 
-        $actor->assertCan('dependency-collector.moderate'); // Or a more specific delete permission
+        $item = DependencyItem::findOrFail($itemId); // 先找到 item
 
-        $item = DependencyItem::findOrFail($itemId);
+        // 使用 Policy 来检查删除权限
+        $actor->assertCan('delete', $item);
+
         $item->delete();
+
+        // 如果需要，可以在删除后触发事件
+        // $this->events->dispatch(new Events\ItemWasDeleted($item, $actor));
     }
 }

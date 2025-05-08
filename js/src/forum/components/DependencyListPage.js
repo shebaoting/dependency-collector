@@ -4,129 +4,191 @@ import Page from 'flarum/common/components/Page';
 import Button from 'flarum/common/components/Button';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 import DependencyItemCard from './DependencyItemCard';
-// listItems 不再需要，因为我们手动构建列表
-// import listItems from 'flarum/common/helpers/listItems';
+// Link 导入是好的实践，即使当前没有直接使用实例
 import Link from 'flarum/common/components/Link';
 import SubmitDependencyModal from './SubmitDependencyModal';
-// 不再需要引入 IndexPage 来获取 sidebarItems
-// import IndexPage from 'flarum/forum/components/IndexPage';
 
 export default class DependencyListPage extends Page {
   oninit(vnode) {
     super.oninit(vnode);
     console.log('DependencyListPage oninit'); // 调试日志
-    this.loading = true;
-    this.items = [];
-    this.tags = [];
-    this.moreResults = false;
-    this.currentTagFilter = m.route.param('tagSlug'); // 直接从路由参数获取
 
-    this.loadResults();
+    this.loadingItems = true; // 依赖项列表的加载状态
+    this.loadingTags = true; // 标签列表的加载状态
+    this.loadingMore = false; // “加载更多”按钮的加载状态
+    this.items = [];
+    this.tags = []; // 初始化为空数组，避免渲染时出错
+    this.moreResults = false;
+    // 初始化 currentTagFilter，确保首次加载时使用正确的路由参数
+    this.currentTagFilter = m.route.param('tagSlug') || null; // 使用 null 代替 undefined
+
+    // 在初始化时同时开始加载标签和依赖项
     this.loadTags();
+    this.loadResults(0); // 加载第一页依赖项
   }
 
-  // 添加 oncreate 生命周期方法，用于设置页面标题
   oncreate(vnode) {
     super.oncreate(vnode);
     app.setTitle(app.translator.trans('shebaoting-dependency-collector.forum.nav_title'));
-    app.setTitleCount(0); // 清除通知计数（如果适用）
+    app.setTitleCount(0); // 清除页面标题的计数（如果有）
+  }
+
+  // 使用 onbeforeupdate 来检测路由参数的变化
+  onbeforeupdate(vnode, old) {
+    super.onbeforeupdate(vnode, old);
+
+    const newTagFilter = m.route.param('tagSlug') || null; // 获取新的路由参数
+
+    // 检查路由参数是否真的发生了变化
+    if (newTagFilter !== this.currentTagFilter) {
+      console.log('Tag filter changed from', this.currentTagFilter, 'to', newTagFilter); // 调试日志
+      this.currentTagFilter = newTagFilter; // 更新组件内部的状态以匹配路由
+      this.loadResults(0); // 仅重新加载依赖项列表的第一页
+      // 返回 false 可以阻止 Mithril 的默认重绘，因为 loadResults 会在其 finally 块中调用 m.redraw()
+      // 这可以避免潜在的重复渲染或状态不一致。
+      return false;
+    }
+
+    // 如果路由参数没有变化，允许 Mithril 进行正常的重绘
+    return true;
   }
 
   view() {
-    console.log('DependencyListPage view rendering. Loading:', this.loading, 'Items:', this.items.length, 'Tags:', this.tags.length); // 调试日志
+    // 调试日志，展示当前渲染时的状态
+    console.log(
+      'DependencyListPage view rendering. LoadingItems:',
+      this.loadingItems,
+      'LoadingTags:',
+      this.loadingTags,
+      'Items:',
+      this.items.length,
+      'Tags:',
+      this.tags.length,
+      'CurrentTag:',
+      this.currentTagFilter
+    );
+
     return (
       <div className="container">
-        {/* 不再需要调用 IndexPage.prototype.sidebarItems */}
-        {/* {IndexPage.prototype.sidebarItems().render()} */}
-
-        {/* 使用类似 IndexPage 的容器结构 */}
+        {/* 使用 sideNavContainer 保持和 Flarum 索引页类似的布局 */}
         <div className="sideNavContainer">
+          {/* 左侧导航栏 */}
           <div className="IndexPage-nav sideNav">
             <ul className="DependencyListPage">
+              {/* 提交按钮区域 */}
               <li className="item-newDiscussion App-primaryControl">
+                {/* 检查用户是否登录以及是否有提交权限 */}
                 {app.session.user && app.forum?.attribute('canSubmitDependencyCollectorItem') && (
                   <Button
-                    className="Button Button--primary"
+                    // 使用 Flarum 核心样式类以保持一致性
+                    className="Button Button--primary IndexPage-newDiscussion"
                     icon="fas fa-plus"
                     onclick={() =>
                       app.modal.show(SubmitDependencyModal, {
-                        // 传递一个回调，以便在成功提交后刷新列表
+                        // 传递回调，提交成功后刷新依赖项列表
                         onsubmit: () => this.loadResults(0),
                       })
                     }
                   >
+                    {/* 按钮文本 */}
                     {app.translator.trans('shebaoting-dependency-collector.forum.list.submit_button')}
                   </Button>
                 )}
               </li>
+
+              {/* 标签列表导航区域 */}
               <li className="item-nav DependencyListPage-sidebar">
+                {/* 标签列表标题 */}
+                {/* <h3>{app.translator.trans('shebaoting-dependency-collector.forum.list.tags_heading')}</h3> */}
                 <div className="ButtonGroup Dropdown dropdown App-titleControl Dropdown--select itemCount9">
-                  {/* 渲染标签列表 */}
-                  <ul className=" DependencyListTags">
-                    <li className={!this.currentTagFilter ? 'active item-allDiscussions' : 'item-allDiscussions'}>
-                      <a
-                        href="#"
-                        onclick={(e) => {
-                          e.preventDefault();
-                          m.route.set(app.route('dependency-collector.forum.index'));
-                        }}
-                      >
-                        {app.translator.trans('shebaoting-dependency-collector.forum.list.all_tags')}
-                      </a>
-                    </li>
-                    {this.tags &&
-                      this.tags.map(
-                        (
-                          tag // 添加 this.tags 检查
-                        ) => (
-                          <li key={tag.id()} className={this.currentTagFilter === tag.slug() ? 'active item-allDiscussions' : 'item-allDiscussions'}>
-                            {/* 使用 onclick 和 m.route.set */}
-                            <a
-                              href="#"
-                              onclick={(e) => {
-                                e.preventDefault();
-                                m.route.set(app.route('dependency-collector.forum.index', { tagSlug: tag.slug() }));
-                              }}
+                  {/* 如果标签正在加载，显示加载指示器 */}
+                  {this.loadingTags ? (
+                    <LoadingIndicator />
+                  ) : (
+                    // 使用 Flarum 核心标签导航样式
+                    <ul className="DependencyListTags">
+                      {/* “全部标签”链接 */}
+                      <li className={'TagLink ' + (!this.currentTagFilter ? 'active item-allDiscussions' : 'item-allDiscussions')}>
+                        <a
+                          // 生成指向 "全部标签" 的路由 URL
+                          href={app.route('dependency-collector.forum.index')}
+                          onclick={(e) => {
+                            e.preventDefault(); // 阻止默认的页面跳转
+                            // 只有当当前过滤器不是 "全部" 时才进行路由切换
+                            if (this.currentTagFilter) {
+                              m.route.set(app.route('dependency-collector.forum.index'));
+                            }
+                          }}
+                        >
+                          <span className="TagLink-name">{app.translator.trans('shebaoting-dependency-collector.forum.list.all_tags')}</span>
+                        </a>
+                      </li>
+                      {/* 渲染具体的标签链接 */}
+                      {/* 确保 this.tags 存在且有内容 */}
+                      {this.tags && this.tags.length > 0
+                        ? this.tags.map((tag) => (
+                            <li
+                              key={tag.id()}
+                              className={'TagLink ' + (this.currentTagFilter === tag.slug() ? 'active item-allDiscussions' : 'item-allDiscussions')}
                             >
-                              {tag.icon() && <i className={tag.icon() + ' DependencyListTag-icon'}></i>}
-                              {tag.name()}
-                            </a>
-                          </li>
-                        )
-                      )}
-                  </ul>
+                              <a
+                                // 生成指向特定标签过滤的路由 URL
+                                href={app.route('dependency-collector.forum.index', { tagSlug: tag.slug() })}
+                                onclick={(e) => {
+                                  e.preventDefault(); // 阻止默认跳转
+                                  // 只有当点击的不是当前已选标签时才进行路由切换
+                                  if (this.currentTagFilter !== tag.slug()) {
+                                    m.route.set(app.route('dependency-collector.forum.index', { tagSlug: tag.slug() }));
+                                  }
+                                }}
+                              >
+                                {/* 如果标签有图标，则显示 */}
+                                {tag.icon() && <i className={tag.icon() + ' TagLink-icon'}></i>}
+                                <span className="TagLink-name">{tag.name()}</span>
+                              </a>
+                            </li>
+                          ))
+                        : // 如果标签加载完成但列表为空，显示提示信息
+                          !this.loadingTags && (
+                            <li className="TagLink disabled">
+                              <span className="TagLink-name">{app.translator.trans('shebaoting-dependency-collector.forum.list.no_tags')}</span>
+                            </li>
+                          )}
+                    </ul>
+                  )}
                 </div>
               </li>
             </ul>
           </div>
 
-          <div className="IndexPage-results DependencyListPage">
-            {/* 主要内容区域 */}
+          {/* 主要内容区域，显示依赖项列表 */}
+          <div className="IndexPage-results sideNavOffset DependencyListPage">
             <div className="DependencyListPage-body">
-              {/* 加载指示器 */}
-              {this.loading && this.items.length === 0 ? (
+              {/* 如果是初始加载依赖项且当前没有项目，显示加载指示器 */}
+              {this.loadingItems && this.items.length === 0 ? (
                 <LoadingIndicator />
               ) : (
+                // 依赖项列表容器
                 <div className="DependencyList">
-                  {/* 渲染依赖项卡片 */}
-                  {this.items &&
-                    this.items.map(
-                      (
-                        item // 添加 this.items 检查
-                      ) => (
-                        <DependencyItemCard item={item} key={item.id()} onchange={() => this.loadResults(0)} /> // 传递 onchange
-                      )
-                    )}
+                  {/* 确保 this.items 存在且有内容 */}
+                  {this.items && this.items.length > 0
+                    ? // 遍历并渲染每个依赖项卡片
+                      this.items.map((item) => <DependencyItemCard item={item} key={item.id()} onchange={() => this.loadResults(0)} />)
+                    : // 如果依赖项加载完成但列表为空，显示空状态提示
+                      !this.loadingItems && <p>{app.translator.trans('shebaoting-dependency-collector.forum.list.empty_text')}</p>}
                 </div>
               )}
 
-              {/* 无结果提示 */}
-              {!this.loading && this.items.length === 0 && <p>{app.translator.trans('shebaoting-dependency-collector.forum.list.empty_text')}</p>}
-
-              {/* 加载更多按钮 */}
-              {this.moreResults && !this.loading && (
+              {/* “加载更多”按钮 */}
+              {/* 仅当有更多结果时才显示此区域 */}
+              {this.moreResults && (
                 <div style="text-align: center; margin-top: 10px;">
-                  <Button className="Button" onclick={this.loadMore.bind(this)} disabled={this.loadingMore}>
+                  <Button
+                    className="Button"
+                    onclick={this.loadMore.bind(this)}
+                    // 使用 loading 属性在加载更多时显示加载状态并禁用按钮
+                    loading={this.loadingMore}
+                  >
                     {app.translator.trans('core.forum.discussion_list.load_more_button')}
                   </Button>
                 </div>
@@ -138,101 +200,126 @@ export default class DependencyListPage extends Page {
     );
   }
 
-  // --- loadResults 方法保持基本不变，但确保参数正确 ---
+  // 加载依赖项列表的方法
   loadResults(offset = 0) {
-    if (offset > 0) {
-      this.loadingMore = true;
+    // offset === 0 表示初始加载或过滤加载
+    if (offset === 0) {
+      this.loadingItems = true;
+      this.items = []; // 清空列表以准备显示新的结果或加载指示器
+      this.moreResults = false; // 重置是否有更多结果的状态
+      m.redraw(); // 立即重绘以反映加载状态
     } else {
-      this.loading = true;
-      this.items = []; // 清空项目以显示加载指示器
+      // offset > 0 表示加载更多
+      this.loadingMore = true;
+      m.redraw(); // 立即重绘以更新“加载更多”按钮状态
     }
-    m.redraw();
 
+    // 准备 API 请求参数
     const params = {
       page: { offset },
-      sort: '-approvedAt',
-      include: 'user,tags,approver', // 确保请求包含所需关系
+      sort: '-approvedAt', // 按最新审核排序
+      include: 'user,tags,approver', // 请求包含关联的用户、标签和审核者信息
+      filter: {}, // 确保 filter 对象存在
     };
 
-    // 使用最新的路由参数来过滤
-    const currentTag = m.route.param('tagSlug');
-    if (currentTag) {
-      params.filter = { tag: currentTag };
-      this.currentTagFilter = currentTag; // 更新内部状态
-    } else {
-      this.currentTagFilter = null; // 清除内部状态
+    // 如果当前设置了标签过滤器，添加到请求参数中
+    if (this.currentTagFilter) {
+      params.filter.tag = this.currentTagFilter;
     }
 
-    console.log('Loading results with params:', params); // 调试日志
+    console.log('Loading results with params:', JSON.stringify(params)); // 调试日志
 
+    // 发起 API 请求
     return app.store
       .find('dependency-items', params)
       .then((results) => {
         console.log('Results loaded:', results); // 调试日志
+        // 检查返回的是否是数组 (Flarum store.find 成功时应返回模型数组)
         if (Array.isArray(results)) {
           if (offset === 0) {
+            // 如果是初始加载，直接替换列表
             this.items = results;
           } else {
+            // 如果是加载更多，追加到现有列表
             this.items.push(...results);
           }
-          // 检查是否有下一页链接，并确保 results.payload 存在
+          // 检查 API 响应的 payload 中是否有下一页的链接
+          // store 返回的数组会附加一个 payload 对象包含元数据和链接
           this.moreResults = !!results.payload?.links?.next;
           console.log('More results:', this.moreResults); // 调试日志
         } else {
+          // 处理 API 返回格式不正确的情况
           console.error('API did not return an array for dependency-items:', results);
-          this.items = offset === 0 ? [] : this.items;
-          this.moreResults = false;
+          if (offset === 0) this.items = []; // 如果是初始加载，清空列表
+          this.moreResults = false; // 标记没有更多结果
         }
       })
       .catch((error) => {
+        // 处理 API 请求错误
         console.error('Error loading dependency items:', error);
-        this.items = offset === 0 ? [] : this.items;
-        this.moreResults = false;
+        if (offset === 0) this.items = []; // 错误发生时，如果是初始加载则清空列表
+        this.moreResults = false; // 标记没有更多结果
+        // 可以在这里向用户显示错误提示，例如使用 app.alerts.show
+        app.alerts.show({ type: 'error' }, app.translator.trans('shebaoting-dependency-collector.forum.list.load_error'));
       })
       .finally(() => {
-        this.loading = false;
+        // 无论请求成功或失败，都结束加载状态
+        this.loadingItems = false;
         this.loadingMore = false;
-        // 确保在 finally 中调用 redraw
-        m.redraw();
+        m.redraw(); // 确保最终的 UI 状态被渲染
         console.log('Loading finished, redraw called.'); // 调试日志
       });
   }
 
-  // --- loadTags 方法保持不变 ---
+  // 加载标签列表的方法
   loadTags() {
+    this.loadingTags = true;
+    // 可以选择在这里重绘以显示加载状态
+    // m.redraw();
+
+    // 发起 API 请求获取所有标签，按名称排序
     app.store
       .find('dependency-tags', { sort: 'name' })
       .then((tags) => {
+        console.log('Tags loaded:', tags); // 调试日志
+        // 确保返回的是数组
         if (Array.isArray(tags)) {
           this.tags = tags;
         } else {
           console.error('API did not return an array for dependency-tags:', tags);
-          this.tags = [];
+          this.tags = []; // 保证 tags 是一个空数组
         }
-        // 移除这里的 redraw，让 loadResults 的 finally 处理
-        // m.redraw();
       })
       .catch((error) => {
+        // 处理错误
         console.error('Error loading tags:', error);
-        this.tags = [];
-        // 移除这里的 redraw
-        // m.redraw();
+        this.tags = []; // 出错时也保证 tags 是空数组
+        // 可以显示错误提示
+        app.alerts.show({ type: 'error' }, app.translator.trans('shebaoting-dependency-collector.forum.list.load_tags_error'));
+      })
+      .finally(() => {
+        // 结束标签加载状态
+        this.loadingTags = false;
+        // 确保标签列表加载完成后 UI 能更新，即使依赖项列表还在加载
+        m.redraw();
+        console.log('Tag loading finished.'); // 调试日志
       });
   }
 
-  // --- loadMore 方法保持不变 ---
+  // 加载更多依赖项的方法
   loadMore() {
-    if (this.loadingMore || this.loading) return; // 增加 this.loading 检查
+    // 如果正在加载中（初始或更多），则不执行任何操作
+    if (this.loadingItems || this.loadingMore) return;
+
+    console.log('Loading more items...'); // 调试日志
+    // 调用 loadResults，使用当前项目数量作为下一页的偏移量
     this.loadResults(this.items.length);
   }
 
-  // --- 移除 onbeforeupdate 方法 ---
-  // onbeforeupdate(vnode, old) { ... }
-
-  // --- onremove 方法保持不变 ---
+  // 组件移除时的清理方法
   onremove(vnode) {
     console.log('DependencyListPage onremove'); // 调试日志
     super.onremove(vnode);
-    // Clean up listeners or other resources if any
+    // 如果有事件监听器或其他需要清理的资源，在此处处理
   }
 }
