@@ -778,17 +778,18 @@ var EditDependencyModal = /*#__PURE__*/function (_Modal) {
       className: "TagSelector"
     }, this.availableTagsList.length > 0 ? this.availableTagsList.map(function (tag) {
       var isSelected = _this.selectedTagIds().includes(tag.id());
-      return m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
+      return m("span", {
         key: tag.id() // 添加 key
         ,
-        className: flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_4___default()('Button Button--tag', isSelected && 'active'),
+        className: flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_4___default()('colored text-contrast--dark', isSelected && 'active'),
         icon: tag.icon(),
         style: isSelected ? {
-          backgroundColor: tag.color() || '#4D698E',
-          color: 'white'
-        } : {
+          backgroundColor: tag.color(),
           borderColor: tag.color() || '#ddd',
-          color: tag.color() || 'inherit'
+          color: 'white' || 0
+        } : {
+          backgroundColor: '#d1f0da' || 0,
+          color: '#669974'
         },
         onclick: function onclick() {
           return _this.toggleTag(tag.id());
@@ -981,12 +982,12 @@ var SubmitDependencyModal = /*#__PURE__*/function (_Modal) {
         className: flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_4___default()('colored text-contrast--dark', isSelected && 'active'),
         icon: tag.icon(),
         style: isSelected ? {
-          backgroundColor: '#d1f0da',
+          backgroundColor: tag.color(),
           borderColor: tag.color() || '#ddd',
-          color: '#669974' || 0
+          color: 'white' || 0
         } : {
-          backgroundColor: tag.color() || '#4D698E',
-          color: 'white'
+          backgroundColor: '#d1f0da' || 0,
+          color: '#669974'
         },
         onclick: function onclick() {
           return _this2.toggleTag(tag.id());

@@ -60,19 +60,19 @@ export default class EditDependencyModal extends Modal {
                   this.availableTagsList.map((tag) => {
                     const isSelected = this.selectedTagIds().includes(tag.id());
                     return (
-                      <Button
+                      <span
                         key={tag.id()} // 添加 key
-                        className={classList('Button Button--tag', isSelected && 'active')}
+                        className={classList('colored text-contrast--dark', isSelected && 'active')}
                         icon={tag.icon()}
                         style={
                           isSelected
-                            ? { backgroundColor: tag.color() || '#4D698E', color: 'white' }
-                            : { borderColor: tag.color() || '#ddd', color: tag.color() || 'inherit' }
+                            ? { backgroundColor: tag.color(), borderColor: tag.color() || '#ddd', color: 'white' || 'inherit' }
+                            : { backgroundColor: '#d1f0da' || '#4D698E', color: '#669974' }
                         }
                         onclick={() => this.toggleTag(tag.id())}
                       >
                         {tag.name()}
-                      </Button>
+                      </span>
                     );
                   })
                 ) : (

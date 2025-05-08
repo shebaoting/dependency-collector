@@ -81,8 +81,8 @@ export default class SubmitDependencyModal extends Modal {
                         icon={tag.icon()}
                         style={
                           isSelected
-                            ? { backgroundColor: '#d1f0da', borderColor: tag.color() || '#ddd', color: '#669974' || 'inherit' }
-                            : { backgroundColor: tag.color() || '#4D698E', color: 'white' }
+                            ? { backgroundColor: tag.color(), borderColor: tag.color() || '#ddd', color: 'white' || 'inherit' }
+                            : { backgroundColor: '#d1f0da' || '#4D698E', color: '#669974' }
                         }
                         onclick={() => this.toggleTag(tag.id())}
                       >
