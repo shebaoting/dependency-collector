@@ -89,7 +89,7 @@ export default class EditDependencyModal extends Modal {
               loading={this.loading}
               disabled={!this.isDirty() || !this.isValid()}
             >
-              {app.translator.trans('core.lib.save_changes_button')}
+              {app.translator.trans('shebaoting-dependency-collector.forum.modal.save_changes_button')}
             </Button>
           </div>
         </div>

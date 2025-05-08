@@ -22,6 +22,7 @@ shebaoting-dependency-collector:
       tags_label: 插件标签 # 插件标签选择区域的标签
       tags_help: 请至少选择一个相关的标签 # 插件标签选择的帮助文本
       submit_button: 提交 # 弹窗中的提交按钮
+      save_changes_button: 保存更改
 
   admin:
     nav:
