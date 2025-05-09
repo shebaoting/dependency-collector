@@ -1,7 +1,7 @@
 {
     "name": "shebaoting/dependency-collector",
     "description": "Collects and displays information about Flarum extensions and their dependencies",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "keywords": [
         "flarum"
     ],
