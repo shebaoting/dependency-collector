@@ -104,11 +104,13 @@ var DependencyItem = /*#__PURE__*/function (_Model) {
     _this.canApprove = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canApprove');
     // 确保 canApprove 属性存在
     _this.canDelete = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canDelete');
+    // 确保存储从后端接收的 canDelete 权限
+    _this.isFavorited = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('isFavorited');
+    _this.canFavorite = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canFavorite');
     return _this;
   }
   (0,_babel_runtime_helpers_esm_inheritsLoose__WEBPACK_IMPORTED_MODULE_0__["default"])(DependencyItem, _Model);
   var _proto = DependencyItem.prototype;
-  // 确保存储从后端接收的 canDelete 权限
   _proto.shortDescription = function shortDescription(length) {
     if (length === void 0) {
       length = 100;
@@ -275,6 +277,16 @@ var DependencyItemCard = /*#__PURE__*/function (_Component) {
       onclick: this.deleteItem.bind(this) // 绑定删除方法
       ,
       "aria-label": app.translator.trans('shebaoting-dependency-collector.forum.item.delete_button_label') // Aria 标签
+    }), app.session.user && item.canFavorite() &&
+    // 仅登录用户且有权限时显示
+    m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_7___default()), {
+      className: flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_6___default()('Button Button--icon Button--link', item.isFavorited() && 'Button--favorited') // 可以添加一个 .Button--favorited 类来改变样式
+      ,
+      icon: item.isFavorited() ? 'fas fa-star' : 'far fa-star' // 实心/空心星星
+      ,
+      onclick: this.toggleFavorite.bind(this),
+      "aria-label": item.isFavorited() ? app.translator.trans('shebaoting-dependency-collector.forum.item.unfavorite_button_label') // 需要添加翻译
+      : app.translator.trans('shebaoting-dependency-collector.forum.item.favorite_button_label') // 需要添加翻译
     })))));
   };
   _proto.editItem = function editItem() {
@@ -353,6 +365,46 @@ var DependencyItemCard = /*#__PURE__*/function (_Component) {
     var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     return luminance > 0.5 ? '#000000' : '#FFFFFF';
   };
+  _proto.toggleFavorite = function toggleFavorite() {
+    var _this4 = this;
+    var item = this.attrs.item;
+    var wasFavorited = item.isFavorited();
+
+    // 乐观更新UI
+    item.pushData({
+      attributes: {
+        isFavorited: !wasFavorited
+      }
+      // 如果API返回完整的item，relationships 可能不需要在这里更新
+    });
+    m.redraw(); // 可能不需要，因为 save 也会触发重绘
+
+    // 发起 API 请求
+    app.request({
+      method: 'POST',
+      url: app.forum.attribute('apiUrl') + "/dependency-items/" + item.id() + "/favorite"
+    }).then(function (response) {
+      // API 应该返回更新后的 item，store 会自动处理
+      app.store.pushPayload(response);
+      // 如果父组件有 onchange，可以调用
+      if (_this4.attrs.onchange) {
+        _this4.attrs.onchange();
+      }
+    })["catch"](function (error) {
+      // API 请求失败，回滚乐观更新
+      item.pushData({
+        attributes: {
+          isFavorited: wasFavorited
+        }
+      });
+      m.redraw();
+      // 显示错误提示
+      app.alerts.show({
+        type: 'error'
+      }, app.translator.trans('core.lib.error.generic_message'));
+      throw error; // 重新抛出错误，以便上层可以捕获（如果需要）
+    });
+  };
   return DependencyItemCard;
 }((flarum_common_Component__WEBPACK_IMPORTED_MODULE_1___default()));
 
@@ -381,6 +433,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var flarum_common_components_Link__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! flarum/common/components/Link */ "flarum/common/components/Link");
 /* harmony import */ var flarum_common_components_Link__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(flarum_common_components_Link__WEBPACK_IMPORTED_MODULE_5__);
 /* harmony import */ var _SubmitDependencyModal__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./SubmitDependencyModal */ "./src/forum/components/SubmitDependencyModal.js");
+/* harmony import */ var flarum_common_components_LinkButton__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! flarum/common/components/LinkButton */ "flarum/common/components/LinkButton");
+/* harmony import */ var flarum_common_components_LinkButton__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(flarum_common_components_LinkButton__WEBPACK_IMPORTED_MODULE_7__);
+/* harmony import */ var flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! flarum/common/utils/classList */ "flarum/common/utils/classList");
+/* harmony import */ var flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__webpack_require__.n(flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_8__);
 
 // js/src/forum/components/DependencyListPage.js
 
@@ -391,6 +447,8 @@ __webpack_require__.r(__webpack_exports__);
 // Link 导入是好的实践，即使当前没有直接使用实例
 
 
+
+ // 用于动态添加类
 var DependencyListPage = /*#__PURE__*/function (_Page) {
   function DependencyListPage() {
     return _Page.apply(this, arguments) || this;
@@ -409,7 +467,7 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
     this.moreResults = false;
     // 初始化 currentTagFilter，确保首次加载时使用正确的路由参数
     this.currentTagFilter = m.route.param('tagSlug') || null; // 使用 null 代替 undefined
-
+    this.showingFavorites = m.route.param('filter') === 'favorites';
     // 在初始化时同时开始加载标签和依赖项
     this.loadTags();
     this.loadResults(0); // 加载第一页依赖项
@@ -425,14 +483,12 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
   _proto.onbeforeupdate = function onbeforeupdate(vnode, old) {
     _Page.prototype.onbeforeupdate.call(this, vnode, old);
     var newTagFilter = m.route.param('tagSlug') || null; // 获取新的路由参数
-
+    var newShowingFavorites = m.route.param('filter') === 'favorites';
     // 检查路由参数是否真的发生了变化
-    if (newTagFilter !== this.currentTagFilter) {
-      console.log('Tag filter changed from', this.currentTagFilter, 'to', newTagFilter); // 调试日志
-      this.currentTagFilter = newTagFilter; // 更新组件内部的状态以匹配路由
-      this.loadResults(0); // 仅重新加载依赖项列表的第一页
-      // 返回 false 可以阻止 Mithril 的默认重绘，因为 loadResults 会在其 finally 块中调用 m.redraw()
-      // 这可以避免潜在的重复渲染或状态不一致。
+    if (newTagFilter !== this.currentTagFilter || newShowingFavorites !== this.showingFavorites) {
+      this.currentTagFilter = newTagFilter;
+      this.showingFavorites = newShowingFavorites; // 更新组件状态
+      this.loadResults(0);
       return false;
     }
 
@@ -441,15 +497,16 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
   };
   _proto.view = function view() {
     var _app$forum,
-      _this = this;
+      _this = this,
+      _app$forum2;
     // 调试日志，展示当前渲染时的状态
     console.log('DependencyListPage view rendering. LoadingItems:', this.loadingItems, 'LoadingTags:', this.loadingTags, 'Items:', this.items.length, 'Tags:', this.tags.length, 'CurrentTag:', this.currentTagFilter);
     return m("div", {
       className: "container"
     }, m("div", {
-      className: "sideNavContainer"
+      className: "sideNavContainer IndexPage-main"
     }, m("div", {
-      className: "IndexPage-nav sideNav"
+      className: "IndexPage-nav sideNav dependencylist-sidenav"
     }, m("ul", {
       className: "DependencyListPage"
     }, m("li", {
@@ -467,7 +524,14 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
           }
         });
       }
-    }, app.translator.trans('shebaoting-dependency-collector.forum.list.submit_button'))), m("li", {
+    }, app.translator.trans('shebaoting-dependency-collector.forum.list.submit_button')), app.session.user && ((_app$forum2 = app.forum) == null ? void 0 : _app$forum2.attribute('canFavoriteDependencyCollectorItemGlobal')) &&
+    // 检查全局收藏权限
+    m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
+      className: flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_8___default()('Button IndexPage-newDiscussion favorites', this.showingFavorites && 'active') // 如果正在显示收藏，则激活
+      ,
+      icon: "fas fa-star",
+      onclick: this.showMyFavorites.bind(this)
+    }, app.translator.trans('shebaoting-dependency-collector.forum.list.my_favorites_button'), " ")), m("li", {
       className: "item-nav DependencyListPage-sidebar"
     }, m("div", {
       className: "ButtonGroup Dropdown dropdown App-titleControl Dropdown--select itemCount9"
@@ -483,7 +547,7 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
       onclick: function onclick(e) {
         e.preventDefault(); // 阻止默认的页面跳转
         // 只有当当前过滤器不是 "全部" 时才进行路由切换
-        if (_this.currentTagFilter) {
+        if (_this.currentTagFilter || _this.showingFavorites) {
           m.route.set(app.route('dependency-collector.forum.index'));
         }
       }
@@ -501,7 +565,7 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
         onclick: function onclick(e) {
           e.preventDefault(); // 阻止默认跳转
           // 只有当点击的不是当前已选标签时才进行路由切换
-          if (_this.currentTagFilter !== tag.slug()) {
+          if (_this.currentTagFilter !== tag.slug() || _this.showingFavorites) {
             m.route.set(app.route('dependency-collector.forum.index', {
               tagSlug: tag.slug()
             }));
@@ -575,13 +639,17 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
       },
       sort: '-approvedAt',
       // 按最新审核排序
-      include: 'user,tags,approver',
+      include: 'user,tags,approver,favoritedByUsers',
       // 请求包含关联的用户、标签和审核者信息
       filter: {} // 确保 filter 对象存在
     };
 
     // 如果当前设置了标签过滤器，添加到请求参数中
-    if (this.currentTagFilter) {
+    if (this.showingFavorites) {
+      params.filter.isFavorite = true; // 后端会根据 actor 自动筛选
+      // 当查看收藏时，通常不应用标签筛选，除非你希望支持“我收藏的某个标签下的项目”
+      // 如果需要，则不清除 this.currentTagFilter，并让后端处理组合筛选
+    } else if (this.currentTagFilter) {
       params.filter.tag = this.currentTagFilter;
     }
     console.log('Loading results with params:', JSON.stringify(params)); // 调试日志
@@ -681,6 +749,14 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
     console.log('DependencyListPage onremove'); // 调试日志
     _Page.prototype.onremove.call(this, vnode);
     // 如果有事件监听器或其他需要清理的资源，在此处处理
+  };
+  _proto.showMyFavorites = function showMyFavorites() {
+    if (!this.showingFavorites) {
+      // 只有当当前不是收藏列表时才切换
+      m.route.set(app.route('dependency-collector.forum.index', {
+        filter: 'favorites'
+      }));
+    }
   };
   return DependencyListPage;
 }((flarum_common_components_Page__WEBPACK_IMPORTED_MODULE_1___default()));

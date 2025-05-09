@@ -1,9 +1,41 @@
+.IndexPage-main {
+  flex-direction: column;
+}
+
 .DependencyListPage {
   margin-top: 30px;
 
+  .item-newDiscussion {
+    .IndexPage-newDiscussion {
+      width: auto;
+      display: inline-block;
+    }
+    .favorites {
+      margin-left: 10px;
+    }
+  }
+
   .DependencyListPage-sidebar {
-    width: 200px; // Adjust as needed
-    margin-right: 20px;
+
+    @media (max-width: 767.98px) {
+      .App-titleControl {
+        width: auto;
+        left: auto;
+        margin-left: auto;
+        position: relative !important;
+        .DependencyListTags {
+          margin-top: 10px;
+          .item-allDiscussions {
+            margin-bottom: 5px;
+            .TagLink-name {
+              font-size: 14px;
+            }
+          }
+        }
+      }
+    }
+
+
 
     h3 {
       font-size: 1.1em;
@@ -15,10 +47,11 @@
       padding-left: 0;
       display: flex;
       flex-wrap: wrap;
+
       li {
         background-color: #e0f4e6;
-        margin: 5px;
         box-sizing: border-box;
+
         &.active a {
           font-weight: bold;
           color: @primary-color;
@@ -66,12 +99,26 @@
   .DependencyListPage-content {
     flex-grow: 1;
   }
-
-.DependencyList {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  .DependencyList {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+@media (max-width: 767.98px) {
+  .DependencyList {
+    display: grid;
+    grid-template-columns: repeat(1, 1fr);
+    gap: 20px;
+  }
 }
+}
+
+@media (min-width: 992px) {
+
+  .DependencyListPage,
+  .dependencylist-sidenav {
+    width: 100% !important;
+  }
 }
 
 .DependencyItemCard {
@@ -104,16 +151,17 @@
 
     .DependencyItemCard-title {
       margin: 0;
-      a {
-      font-size: 1.2em;
-      font-weight: bold;
-      color: @heading-color;
-      text-decoration: none;
 
-      &:hover {
-        text-decoration: underline;
+      a {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: @heading-color;
+        text-decoration: none;
+
+        &:hover {
+          text-decoration: underline;
+        }
       }
-    }
     }
   }
 
@@ -158,6 +206,12 @@
       display: flex;
       align-items: center;
 
+.DependencyItemCard-actions {
+  margin-left: 10px;
+  .Button--icon {
+    width: 24px;
+  }
+}
       .DependencyItemCard-submitter {
         display: flex;
         align-items: center;
@@ -173,7 +227,8 @@
   }
 }
 
-.SubmitDependencyModal,.EditDependencyModal {
+.SubmitDependencyModal,
+.EditDependencyModal {
   .TagSelector {
     display: flex;
     flex-wrap: wrap; // 允许标签换行
@@ -188,6 +243,7 @@
       line-height: 12px;
       transition: background-color 0.2s, color 0.2s, border-color 0.2s; // 平滑过渡
       border-radius: 3px;
+
       &:hover {
         background-color: #f5f5f5;
         border-color: #ccc;

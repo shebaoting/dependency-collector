@@ -520,6 +520,13 @@ flarum_admin_app__WEBPACK_IMPORTED_MODULE_0___default().initializers.add('shebao
     label: flarum_admin_app__WEBPACK_IMPORTED_MODULE_0___default().translator.trans('shebaoting-dependency-collector.admin.permissions.manage_tags_label'),
     permission: 'dependency-collector.manageTags'
   }, 'moderate' // Or a new group like 'manage'
+  ).registerPermission({
+    icon: 'fas fa-star',
+    // 收藏图标
+    label: flarum_admin_app__WEBPACK_IMPORTED_MODULE_0___default().translator.trans('shebaoting-dependency-collector.admin.permissions.favorite_items_label'),
+    // 需要添加翻译
+    permission: 'dependency-collector.favoriteItems'
+  }, 'general' // 或其他合适的权限组
   );
 });
 
@@ -587,11 +594,13 @@ var DependencyItem = /*#__PURE__*/function (_Model) {
     _this.canApprove = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canApprove');
     // 确保 canApprove 属性存在
     _this.canDelete = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canDelete');
+    // 确保存储从后端接收的 canDelete 权限
+    _this.isFavorited = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('isFavorited');
+    _this.canFavorite = flarum_common_Model__WEBPACK_IMPORTED_MODULE_1___default().attribute('canFavorite');
     return _this;
   }
   (0,_babel_runtime_helpers_esm_inheritsLoose__WEBPACK_IMPORTED_MODULE_0__["default"])(DependencyItem, _Model);
   var _proto = DependencyItem.prototype;
-  // 确保存储从后端接收的 canDelete 权限
   _proto.shortDescription = function shortDescription(length) {
     if (length === void 0) {
       length = 100;

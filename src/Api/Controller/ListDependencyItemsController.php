@@ -16,7 +16,7 @@ use Illuminate\Support\Str;
 class ListDependencyItemsController extends AbstractListController
 {
     public $serializer = DependencyItemSerializer::class;
-    public $include = ['user', 'tags', 'approver'];
+    public $include = ['user', 'tags', 'approver', 'favoritedByUsers'];
 
     // --- 修改: 更新允许的排序字段 ---
     // 我们将主要通过自定义逻辑排序，但保留这些以备前端特定请求
@@ -47,19 +47,31 @@ class ListDependencyItemsController extends AbstractListController
 
         $query = DependencyItem::query();
 
-        // 用户权限和状态过滤逻辑保持不变
-        if (!$actor->hasPermission('dependency-collector.moderate')) {
-            $query->where(function ($q) use ($actor) {
-                $q->where('status', 'approved')
-                    ->orWhere(function ($q2) use ($actor) {
-                        $q2->where('user_id', $actor->id)
-                            ->where('status', 'pending');
-                    });
+
+        $isMyFavorites = (bool) Arr::get($filters, 'isFavorite');
+        if ($isMyFavorites) {
+            $actor->assertRegistered(); // 查看收藏必须登录
+            $query->whereHas('favoritedByUsers', function ($q) use ($actor) {
+                $q->where('users.id', $actor->id);
             });
-        } else {
-            $statusFilter = Arr::get($filters, 'status');
-            if ($statusFilter && in_array($statusFilter, ['pending', 'approved', 'rejected'])) {
-                $query->where('status', $statusFilter);
+        }
+
+
+        // 用户权限和状态过滤逻辑保持不变
+        if (!$isMyFavorites) { // 仅当不是查看我的收藏时应用此过滤
+            if (!$actor->hasPermission('dependency-collector.moderate')) {
+                $query->where(function ($q) use ($actor) {
+                    $q->where('status', 'approved')
+                        ->orWhere(function ($q2) use ($actor) {
+                            $q2->where('user_id', $actor->id)
+                                ->where('status', 'pending');
+                        });
+                });
+            } else {
+                $statusFilter = Arr::get($filters, 'status');
+                if ($statusFilter && in_array($statusFilter, ['pending', 'approved', 'rejected'])) {
+                    $query->where('status', $statusFilter);
+                }
             }
         }
 

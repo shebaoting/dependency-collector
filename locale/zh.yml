@@ -6,11 +6,14 @@ shebaoting-dependency-collector:
       filter_by_tag: 按标签筛选 # 筛选区域标题
       all_tags: 全部标签 # “全部标签”筛选选项
       empty_text: 暂无产品。 # 列表为空时的提示文本
+      my_favorites_button: 我的收藏
     item:
       pending_approval: 审核中 # 产品卡片上“待审核”状态的徽章
       delete_button_label: 删除 # 删除按钮的 aria-label
       delete_confirmation_title: 删除产品 # 删除确认弹窗标题
       delete_confirmation_text: 您确定要删除此产品吗？此操作无法撤销。 # 删除确认弹窗内容
+      favorite_button_label: 收藏
+      unfavorite_button_label: 取消收藏
     modal:
       submit_title: 提交新的产品 # 提交产品弹窗的标题
       title_label: 标题 # 标题输入框的标签
@@ -73,3 +76,4 @@ shebaoting-dependency-collector:
       moderate_label: 管理产品 (批准、拒绝、编辑、删除)
       manage_tags_label: 管理插件标签
       delete_label: 删除产品
+      favorite_items_label: 收藏产品 # 新增

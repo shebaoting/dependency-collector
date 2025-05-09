@@ -7,7 +7,8 @@ import DependencyItemCard from './DependencyItemCard';
 // Link 导入是好的实践，即使当前没有直接使用实例
 import Link from 'flarum/common/components/Link';
 import SubmitDependencyModal from './SubmitDependencyModal';
-
+import LinkButton from 'flarum/common/components/LinkButton';
+import classList from 'flarum/common/utils/classList'; // 用于动态添加类
 export default class DependencyListPage extends Page {
   oninit(vnode) {
     super.oninit(vnode);
@@ -21,7 +22,7 @@ export default class DependencyListPage extends Page {
     this.moreResults = false;
     // 初始化 currentTagFilter，确保首次加载时使用正确的路由参数
     this.currentTagFilter = m.route.param('tagSlug') || null; // 使用 null 代替 undefined
-
+    this.showingFavorites = m.route.param('filter') === 'favorites';
     // 在初始化时同时开始加载标签和依赖项
     this.loadTags();
     this.loadResults(0); // 加载第一页依赖项
@@ -38,14 +39,12 @@ export default class DependencyListPage extends Page {
     super.onbeforeupdate(vnode, old);
 
     const newTagFilter = m.route.param('tagSlug') || null; // 获取新的路由参数
-
+    const newShowingFavorites = m.route.param('filter') === 'favorites';
     // 检查路由参数是否真的发生了变化
-    if (newTagFilter !== this.currentTagFilter) {
-      console.log('Tag filter changed from', this.currentTagFilter, 'to', newTagFilter); // 调试日志
-      this.currentTagFilter = newTagFilter; // 更新组件内部的状态以匹配路由
-      this.loadResults(0); // 仅重新加载依赖项列表的第一页
-      // 返回 false 可以阻止 Mithril 的默认重绘，因为 loadResults 会在其 finally 块中调用 m.redraw()
-      // 这可以避免潜在的重复渲染或状态不一致。
+    if (newTagFilter !== this.currentTagFilter || newShowingFavorites !== this.showingFavorites) {
+      this.currentTagFilter = newTagFilter;
+      this.showingFavorites = newShowingFavorites; // 更新组件状态
+      this.loadResults(0);
       return false;
     }
 
@@ -71,9 +70,9 @@ export default class DependencyListPage extends Page {
     return (
       <div className="container">
         {/* 使用 sideNavContainer 保持和 Flarum 索引页类似的布局 */}
-        <div className="sideNavContainer">
+        <div className="sideNavContainer IndexPage-main">
           {/* 左侧导航栏 */}
-          <div className="IndexPage-nav sideNav">
+          <div className="IndexPage-nav sideNav dependencylist-sidenav">
             <ul className="DependencyListPage">
               {/* 提交按钮区域 */}
               <li className="item-newDiscussion App-primaryControl">
@@ -94,6 +93,17 @@ export default class DependencyListPage extends Page {
                     {app.translator.trans('shebaoting-dependency-collector.forum.list.submit_button')}
                   </Button>
                 )}
+
+                {app.session.user &&
+                  app.forum?.attribute('canFavoriteDependencyCollectorItemGlobal') && ( // 检查全局收藏权限
+                    <Button
+                      className={classList('Button IndexPage-newDiscussion favorites', this.showingFavorites && 'active')} // 如果正在显示收藏，则激活
+                      icon="fas fa-star"
+                      onclick={this.showMyFavorites.bind(this)}
+                    >
+                      {app.translator.trans('shebaoting-dependency-collector.forum.list.my_favorites_button')} {/* 需要添加翻译 */}
+                    </Button>
+                  )}
               </li>
 
               {/* 标签列表导航区域 */}
@@ -115,7 +125,7 @@ export default class DependencyListPage extends Page {
                           onclick={(e) => {
                             e.preventDefault(); // 阻止默认的页面跳转
                             // 只有当当前过滤器不是 "全部" 时才进行路由切换
-                            if (this.currentTagFilter) {
+                            if (this.currentTagFilter || this.showingFavorites) {
                               m.route.set(app.route('dependency-collector.forum.index'));
                             }
                           }}
@@ -137,7 +147,7 @@ export default class DependencyListPage extends Page {
                                 onclick={(e) => {
                                   e.preventDefault(); // 阻止默认跳转
                                   // 只有当点击的不是当前已选标签时才进行路由切换
-                                  if (this.currentTagFilter !== tag.slug()) {
+                                  if (this.currentTagFilter !== tag.slug() || this.showingFavorites) {
                                     m.route.set(app.route('dependency-collector.forum.index', { tagSlug: tag.slug() }));
                                   }
                                 }}
@@ -218,12 +228,16 @@ export default class DependencyListPage extends Page {
     const params = {
       page: { offset },
       sort: '-approvedAt', // 按最新审核排序
-      include: 'user,tags,approver', // 请求包含关联的用户、标签和审核者信息
+      include: 'user,tags,approver,favoritedByUsers', // 请求包含关联的用户、标签和审核者信息
       filter: {}, // 确保 filter 对象存在
     };
 
     // 如果当前设置了标签过滤器，添加到请求参数中
-    if (this.currentTagFilter) {
+    if (this.showingFavorites) {
+      params.filter.isFavorite = true; // 后端会根据 actor 自动筛选
+      // 当查看收藏时，通常不应用标签筛选，除非你希望支持“我收藏的某个标签下的项目”
+      // 如果需要，则不清除 this.currentTagFilter，并让后端处理组合筛选
+    } else if (this.currentTagFilter) {
       params.filter.tag = this.currentTagFilter;
     }
 
@@ -321,5 +335,12 @@ export default class DependencyListPage extends Page {
     console.log('DependencyListPage onremove'); // 调试日志
     super.onremove(vnode);
     // 如果有事件监听器或其他需要清理的资源，在此处处理
+  }
+
+  showMyFavorites() {
+    if (!this.showingFavorites) {
+      // 只有当当前不是收藏列表时才切换
+      m.route.set(app.route('dependency-collector.forum.index', { filter: 'favorites' }));
+    }
   }
 }

@@ -53,4 +53,17 @@ class DependencyItemPolicy extends AbstractPolicy
 
         return $this->deny();
     }
+
+    public function favoriteItem(User $actor, DependencyItem $item)
+    {
+        // 只有登录用户并且拥有全局收藏权限才能收藏
+        if ($actor->isGuest()) {
+            return $this->deny();
+        }
+        // 确保依赖项是已批准的才能被收藏 (可选，根据你的业务逻辑)
+        // if ($item->status !== 'approved') {
+        //     return $this->deny();
+        // }
+        return $actor->hasPermission('dependency-collector.favoriteItems') ? $this->allow() : $this->deny();
+    }
 }

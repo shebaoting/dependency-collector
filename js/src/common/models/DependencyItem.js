@@ -18,6 +18,8 @@ export default class DependencyItem extends Model {
   canEdit = Model.attribute('canEdit'); // 确保 canEdit 属性存在
   canApprove = Model.attribute('canApprove'); // 确保 canApprove 属性存在
   canDelete = Model.attribute('canDelete'); // 确保存储从后端接收的 canDelete 权限
+  isFavorited = Model.attribute('isFavorited');
+  canFavorite = Model.attribute('canFavorite');
   shortDescription(length = 100) {
     const desc = this.description();
     if (!desc) return '';

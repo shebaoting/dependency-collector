@@ -35,5 +35,13 @@ app.initializers.add('shebaoting-dependency-collector-admin', () => {
         permission: 'dependency-collector.manageTags',
       },
       'moderate' // Or a new group like 'manage'
+    )
+    .registerPermission(
+      {
+        icon: 'fas fa-star', // 收藏图标
+        label: app.translator.trans('shebaoting-dependency-collector.admin.permissions.favorite_items_label'), // 需要添加翻译
+        permission: 'dependency-collector.favoriteItems',
+      },
+      'general' // 或其他合适的权限组
     );
 });

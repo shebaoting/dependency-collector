@@ -6,11 +6,14 @@ shebaoting-dependency-collector:
       filter_by_tag: Filter by Tag
       all_tags: All
       empty_text: No dependencies found.
+      my_favorites_button: My Favorites
     item:
       pending_approval: Pending Approval
       delete_button_label: Delete # 删除按钮的 aria-label
       delete_confirmation_title: Delete Dependency # 删除确认弹窗标题
       delete_confirmation_text: Are you sure you want to delete this dependency? This action cannot be undone. # 删除确认弹窗内容
+      favorite_button_label: Favorite # 新增
+      unfavorite_button_label: Unfavorite
     modal:
       submit_title: Submit New Dependency
       title_label: Title
@@ -69,3 +72,4 @@ shebaoting-dependency-collector:
       moderate_label: Moderate dependencies (approve, reject, edit, delete)
       manage_tags_label: Manage plugin tags
       delete_label: Delete dependencies # 新增删除权限的描述
+      favorite_items_label: Favorite dependencies # 新增

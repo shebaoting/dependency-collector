@@ -3,8 +3,8 @@
 /*
  * This file is part of shebaoting/dependency-collector.
  *
- * Copyright (c) 2025 Shebaoting.
  *
+ * Copyright (c) 2025 Shebaoting.
  * For the full copyright and license information, please view the LICENSE.md
  * file that was distributed with this source code.
  */
@@ -42,7 +42,10 @@ return [
         ->get('/dependency-tags', 'dependency-collector.tags.index', Controller\ListDependencyTagsController::class)
         ->post('/dependency-tags', 'dependency-collector.tags.create', Controller\CreateDependencyTagController::class)
         ->patch('/dependency-tags/{id}', 'dependency-collector.tags.update', Controller\UpdateDependencyTagController::class)
-        ->delete('/dependency-tags/{id}', 'dependency-collector.tags.delete', Controller\DeleteDependencyTagController::class),
+        ->delete('/dependency-tags/{id}', 'dependency-collector.tags.delete', Controller\DeleteDependencyTagController::class)
+
+        // Toggle Favorite
+        ->post('/dependency-items/{id}/favorite', 'dependency-collector.items.favorite', Controller\ToggleFavoriteController::class),
 
     // 国际化语言文件设置
     (new Extend\Locales(__DIR__ . '/locale')),
@@ -65,5 +68,9 @@ return [
         // 如果没有全局删除权限的需求，可以不暴露这个全局权限
         ->attribute('canDeleteDependencyCollectorItem', function ($serializer, $model, $attributes) {
             return $serializer->getActor()->hasPermission('dependency-collector.delete');
+        })
+
+        ->attribute('canFavoriteDependencyCollectorItemGlobal', function ($serializer, $model, $attributes) { // 注意这里我用了 Global 后缀
+            return $serializer->getActor()->hasPermission('dependency-collector.favoriteItems');
         })
 ];

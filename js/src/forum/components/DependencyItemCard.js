@@ -83,7 +83,7 @@ export default class DependencyItemCard extends Component {
                   }
                 />
               )}
-              {/* --- 新增: 删除按钮 --- */}
+
               {item.canDelete() && (
                 <Button
                   className="Button Button--icon Button--link Button--danger" // 使用危险样式
@@ -92,7 +92,20 @@ export default class DependencyItemCard extends Component {
                   aria-label={app.translator.trans('shebaoting-dependency-collector.forum.item.delete_button_label')} // Aria 标签
                 />
               )}
-              {/* --- 结束新增 --- */}
+
+              {app.session.user &&
+                item.canFavorite() && ( // 仅登录用户且有权限时显示
+                  <Button
+                    className={classList('Button Button--icon Button--link', item.isFavorited() && 'Button--favorited')} // 可以添加一个 .Button--favorited 类来改变样式
+                    icon={item.isFavorited() ? 'fas fa-star' : 'far fa-star'} // 实心/空心星星
+                    onclick={this.toggleFavorite.bind(this)}
+                    aria-label={
+                      item.isFavorited()
+                        ? app.translator.trans('shebaoting-dependency-collector.forum.item.unfavorite_button_label') // 需要添加翻译
+                        : app.translator.trans('shebaoting-dependency-collector.forum.item.favorite_button_label') // 需要添加翻译
+                    }
+                  />
+                )}
             </div>
             {/* --- Action 结束 --- */}
           </div>
@@ -179,5 +192,42 @@ export default class DependencyItemCard extends Component {
     const b = parseInt(hexColor.substr(4, 2), 16);
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     return luminance > 0.5 ? '#000000' : '#FFFFFF';
+  }
+
+  toggleFavorite() {
+    const item = this.attrs.item;
+    const wasFavorited = item.isFavorited();
+
+    // 乐观更新UI
+    item.pushData({
+      attributes: { isFavorited: !wasFavorited },
+      // 如果API返回完整的item，relationships 可能不需要在这里更新
+    });
+    m.redraw(); // 可能不需要，因为 save 也会触发重绘
+
+    // 发起 API 请求
+    app
+      .request({
+        method: 'POST',
+        url: `${app.forum.attribute('apiUrl')}/dependency-items/${item.id()}/favorite`,
+      })
+      .then((response) => {
+        // API 应该返回更新后的 item，store 会自动处理
+        app.store.pushPayload(response);
+        // 如果父组件有 onchange，可以调用
+        if (this.attrs.onchange) {
+          this.attrs.onchange();
+        }
+      })
+      .catch((error) => {
+        // API 请求失败，回滚乐观更新
+        item.pushData({
+          attributes: { isFavorited: wasFavorited },
+        });
+        m.redraw();
+        // 显示错误提示
+        app.alerts.show({ type: 'error' }, app.translator.trans('core.lib.error.generic_message'));
+        throw error; // 重新抛出错误，以便上层可以捕获（如果需要）
+      });
   }
 }

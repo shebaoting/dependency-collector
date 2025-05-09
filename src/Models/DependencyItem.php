@@ -48,4 +48,13 @@ class DependencyItem extends AbstractModel
     {
         return $this->belongsToMany(DependencyTag::class, 'dependency_collector_item_tag', 'item_id', 'tag_id');
     }
+
+    /**
+     * 定义一个多对多的关系，表示哪些用户收藏了此依赖项。
+     */
+    public function favoritedByUsers()
+    {
+        return $this->belongsToMany(User::class, 'dependency_collector_item_user_favorites', 'item_id', 'user_id')
+            ->withPivot('favorited_at');     // 禁用默认的 created_at 和 updated_at
+    }
 }
