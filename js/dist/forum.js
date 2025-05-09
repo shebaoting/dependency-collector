@@ -460,46 +460,46 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
     console.log('DependencyListPage oninit'); // 调试日志
 
     this.loadingItems = true; // 依赖项列表的加载状态
-    this.loadingTags = true; // 标签列表的加载状态
     this.loadingMore = false; // “加载更多”按钮的加载状态
     this.items = [];
-    this.tags = []; // 初始化为空数组，避免渲染时出错
+    this.tags = app.store.all('dependency-tags') || []; // 先尝试从 store 中获取
     this.moreResults = false;
-    // 初始化 currentTagFilter，确保首次加载时使用正确的路由参数
-    this.currentTagFilter = m.route.param('tagSlug') || null; // 使用 null 代替 undefined
+    this.currentTagFilter = m.route.param('tagSlug') || null;
     this.showingFavorites = m.route.param('filter') === 'favorites';
-    // 在初始化时同时开始加载标签和依赖项
-    this.loadTags();
+
+    // --- 修改: 仅当 store 中没有标签时才加载 ---
+    if (this.tags.length === 0) {
+      this.loadingTags = true; // 只有在需要从API加载时才设置为true
+      this.loadTags();
+    } else {
+      this.loadingTags = false; // 如果store中有，则不需要加载状态
+      console.log('Tags already in store, not loading from API initially.');
+    }
+    // --- 修改结束 ---
+
     this.loadResults(0); // 加载第一页依赖项
   };
   _proto.oncreate = function oncreate(vnode) {
     _Page.prototype.oncreate.call(this, vnode);
     app.setTitle(app.translator.trans('shebaoting-dependency-collector.forum.nav_title'));
-    app.setTitleCount(0); // 清除页面标题的计数（如果有）
-  }
-
-  // 使用 onbeforeupdate 来检测路由参数的变化
-  ;
+    app.setTitleCount(0);
+  };
   _proto.onbeforeupdate = function onbeforeupdate(vnode, old) {
     _Page.prototype.onbeforeupdate.call(this, vnode, old);
-    var newTagFilter = m.route.param('tagSlug') || null; // 获取新的路由参数
+    var newTagFilter = m.route.param('tagSlug') || null;
     var newShowingFavorites = m.route.param('filter') === 'favorites';
-    // 检查路由参数是否真的发生了变化
     if (newTagFilter !== this.currentTagFilter || newShowingFavorites !== this.showingFavorites) {
       this.currentTagFilter = newTagFilter;
-      this.showingFavorites = newShowingFavorites; // 更新组件状态
+      this.showingFavorites = newShowingFavorites;
       this.loadResults(0);
       return false;
     }
-
-    // 如果路由参数没有变化，允许 Mithril 进行正常的重绘
     return true;
   };
   _proto.view = function view() {
     var _app$forum,
       _this = this,
       _app$forum2;
-    // 调试日志，展示当前渲染时的状态
     console.log('DependencyListPage view rendering. LoadingItems:', this.loadingItems, 'LoadingTags:', this.loadingTags, 'Items:', this.items.length, 'Tags:', this.tags.length, 'CurrentTag:', this.currentTagFilter);
     return m("div", {
       className: "container"
@@ -511,42 +511,34 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
       className: "DependencyListPage"
     }, m("li", {
       className: "item-newDiscussion App-primaryControl"
-    }, app.session.user && ((_app$forum = app.forum) == null ? void 0 : _app$forum.attribute('canSubmitDependencyCollectorItem')) && m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default())
-    // 使用 Flarum 核心样式类以保持一致性
-    , {
+    }, app.session.user && ((_app$forum = app.forum) == null ? void 0 : _app$forum.attribute('canSubmitDependencyCollectorItem')) && m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
       className: "Button Button--primary IndexPage-newDiscussion",
       icon: "fas fa-plus",
       onclick: function onclick() {
         return app.modal.show(_SubmitDependencyModal__WEBPACK_IMPORTED_MODULE_6__["default"], {
-          // 传递回调，提交成功后刷新依赖项列表
           onsubmit: function onsubmit() {
             return _this.loadResults(0);
           }
         });
       }
-    }, app.translator.trans('shebaoting-dependency-collector.forum.list.submit_button')), app.session.user && ((_app$forum2 = app.forum) == null ? void 0 : _app$forum2.attribute('canFavoriteDependencyCollectorItemGlobal')) &&
-    // 检查全局收藏权限
-    m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
-      className: flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_8___default()('Button IndexPage-newDiscussion favorites', this.showingFavorites && 'active') // 如果正在显示收藏，则激活
-      ,
+    }, app.translator.trans('shebaoting-dependency-collector.forum.list.submit_button')), app.session.user && ((_app$forum2 = app.forum) == null ? void 0 : _app$forum2.attribute('canFavoriteDependencyCollectorItemGlobal')) && m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
+      className: flarum_common_utils_classList__WEBPACK_IMPORTED_MODULE_8___default()('Button IndexPage-newDiscussion favorites', this.showingFavorites && 'active'),
       icon: "fas fa-star",
       onclick: this.showMyFavorites.bind(this)
-    }, app.translator.trans('shebaoting-dependency-collector.forum.list.my_favorites_button'), " ")), m("li", {
+    }, app.translator.trans('shebaoting-dependency-collector.forum.list.my_favorites_button'))), m("li", {
       className: "item-nav DependencyListPage-sidebar"
     }, m("div", {
       className: "ButtonGroup Dropdown dropdown App-titleControl Dropdown--select itemCount9"
-    }, this.loadingTags ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) :
-    // 使用 Flarum 核心标签导航样式
-    m("ul", {
+    }, this.loadingTags && !this.tags.length ?
+    // 只有在加载中且tags为空时显示
+    m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) : m("ul", {
       className: "DependencyListTags"
     }, m("li", {
-      className: 'TagLink ' + (!this.currentTagFilter ? 'active item-allDiscussions' : 'item-allDiscussions')
+      className: 'TagLink ' + (!this.currentTagFilter && !this.showingFavorites ? 'active item-allDiscussions' : 'item-allDiscussions')
     }, m("a", {
-      // 生成指向 "全部标签" 的路由 URL
       href: app.route('dependency-collector.forum.index'),
       onclick: function onclick(e) {
-        e.preventDefault(); // 阻止默认的页面跳转
-        // 只有当当前过滤器不是 "全部" 时才进行路由切换
+        e.preventDefault();
         if (_this.currentTagFilter || _this.showingFavorites) {
           m.route.set(app.route('dependency-collector.forum.index'));
         }
@@ -556,15 +548,13 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
     }, app.translator.trans('shebaoting-dependency-collector.forum.list.all_tags')))), this.tags && this.tags.length > 0 ? this.tags.map(function (tag) {
       return m("li", {
         key: tag.id(),
-        className: 'TagLink ' + (_this.currentTagFilter === tag.slug() ? 'active item-allDiscussions' : 'item-allDiscussions')
+        className: 'TagLink ' + (_this.currentTagFilter === tag.slug() && !_this.showingFavorites ? 'active item-allDiscussions' : 'item-allDiscussions')
       }, m("a", {
-        // 生成指向特定标签过滤的路由 URL
         href: app.route('dependency-collector.forum.index', {
           tagSlug: tag.slug()
         }),
         onclick: function onclick(e) {
-          e.preventDefault(); // 阻止默认跳转
-          // 只有当点击的不是当前已选标签时才进行路由切换
+          e.preventDefault();
           if (_this.currentTagFilter !== tag.slug() || _this.showingFavorites) {
             m.route.set(app.route('dependency-collector.forum.index', {
               tagSlug: tag.slug()
@@ -576,9 +566,9 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
       }), m("span", {
         className: "TagLink-name"
       }, tag.name())));
-    }) :
-    // 如果标签加载完成但列表为空，显示提示信息
-    !this.loadingTags && m("li", {
+    }) : !this.loadingTags &&
+    // 如果不是加载中且没有标签
+    m("li", {
       className: "TagLink disabled"
     }, m("span", {
       className: "TagLink-name"
@@ -586,13 +576,9 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
       className: "IndexPage-results sideNavOffset DependencyListPage"
     }, m("div", {
       className: "DependencyListPage-body"
-    }, this.loadingItems && this.items.length === 0 ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) :
-    // 依赖项列表容器
-    m("div", {
+    }, this.loadingItems && this.items.length === 0 ? m((flarum_common_components_LoadingIndicator__WEBPACK_IMPORTED_MODULE_3___default()), null) : m("div", {
       className: "DependencyList"
-    }, this.items && this.items.length > 0 ?
-    // 遍历并渲染每个依赖项卡片
-    this.items.map(function (item) {
+    }, this.items && this.items.length > 0 ? this.items.map(function (item) {
       return m(_DependencyItemCard__WEBPACK_IMPORTED_MODULE_4__["default"], {
         item: item,
         key: item.id(),
@@ -600,163 +586,130 @@ var DependencyListPage = /*#__PURE__*/function (_Page) {
           return _this.loadResults(0);
         }
       });
-    }) :
-    // 如果依赖项加载完成但列表为空，显示空状态提示
-    !this.loadingItems && m("p", null, app.translator.trans('shebaoting-dependency-collector.forum.list.empty_text'))), this.moreResults && m("div", {
+    }) : !this.loadingItems && m("p", null, app.translator.trans('shebaoting-dependency-collector.forum.list.empty_text'))), this.moreResults && m("div", {
       style: "text-align: center; margin-top: 10px;"
     }, m((flarum_common_components_Button__WEBPACK_IMPORTED_MODULE_2___default()), {
       className: "Button",
-      onclick: this.loadMore.bind(this)
-      // 使用 loading 属性在加载更多时显示加载状态并禁用按钮
-      ,
+      onclick: this.loadMore.bind(this),
       loading: this.loadingMore
     }, app.translator.trans('core.forum.discussion_list.load_more_button')))))));
-  }
-
-  // 加载依赖项列表的方法
-  ;
+  };
   _proto.loadResults = function loadResults(offset) {
     var _this2 = this;
     if (offset === void 0) {
       offset = 0;
     }
-    // offset === 0 表示初始加载或过滤加载
     if (offset === 0) {
       this.loadingItems = true;
-      this.items = []; // 清空列表以准备显示新的结果或加载指示器
-      this.moreResults = false; // 重置是否有更多结果的状态
-      m.redraw(); // 立即重绘以反映加载状态
+      this.items = [];
+      this.moreResults = false;
+      m.redraw();
     } else {
-      // offset > 0 表示加载更多
       this.loadingMore = true;
-      m.redraw(); // 立即重绘以更新“加载更多”按钮状态
+      m.redraw();
     }
-
-    // 准备 API 请求参数
     var params = {
       page: {
         offset: offset
       },
       sort: '-approvedAt',
-      // 按最新审核排序
       include: 'user,tags,approver,favoritedByUsers',
-      // 请求包含关联的用户、标签和审核者信息
-      filter: {} // 确保 filter 对象存在
+      filter: {}
     };
-
-    // 如果当前设置了标签过滤器，添加到请求参数中
     if (this.showingFavorites) {
-      params.filter.isFavorite = true; // 后端会根据 actor 自动筛选
-      // 当查看收藏时，通常不应用标签筛选，除非你希望支持“我收藏的某个标签下的项目”
-      // 如果需要，则不清除 this.currentTagFilter，并让后端处理组合筛选
+      params.filter.isFavorite = true;
     } else if (this.currentTagFilter) {
       params.filter.tag = this.currentTagFilter;
     }
-    console.log('Loading results with params:', JSON.stringify(params)); // 调试日志
-
-    // 发起 API 请求
+    console.log('Loading results with params:', JSON.stringify(params));
     return app.store.find('dependency-items', params).then(function (results) {
-      console.log('Results loaded:', results); // 调试日志
-      // 检查返回的是否是数组 (Flarum store.find 成功时应返回模型数组)
+      console.log('Results loaded:', results);
       if (Array.isArray(results)) {
         var _results$payload;
         if (offset === 0) {
-          // 如果是初始加载，直接替换列表
           _this2.items = results;
         } else {
           var _this2$items;
-          // 如果是加载更多，追加到现有列表
           (_this2$items = _this2.items).push.apply(_this2$items, results);
         }
-        // 检查 API 响应的 payload 中是否有下一页的链接
-        // store 返回的数组会附加一个 payload 对象包含元数据和链接
         _this2.moreResults = !!((_results$payload = results.payload) != null && (_results$payload = _results$payload.links) != null && _results$payload.next);
-        console.log('More results:', _this2.moreResults); // 调试日志
+        console.log('More results:', _this2.moreResults);
       } else {
-        // 处理 API 返回格式不正确的情况
         console.error('API did not return an array for dependency-items:', results);
-        if (offset === 0) _this2.items = []; // 如果是初始加载，清空列表
-        _this2.moreResults = false; // 标记没有更多结果
+        if (offset === 0) _this2.items = [];
+        _this2.moreResults = false;
       }
     })["catch"](function (error) {
-      // 处理 API 请求错误
       console.error('Error loading dependency items:', error);
-      if (offset === 0) _this2.items = []; // 错误发生时，如果是初始加载则清空列表
-      _this2.moreResults = false; // 标记没有更多结果
-      // 可以在这里向用户显示错误提示，例如使用 app.alerts.show
+      if (offset === 0) _this2.items = [];
+      _this2.moreResults = false;
       app.alerts.show({
         type: 'error'
       }, app.translator.trans('shebaoting-dependency-collector.forum.list.load_error'));
     })["finally"](function () {
-      // 无论请求成功或失败，都结束加载状态
       _this2.loadingItems = false;
       _this2.loadingMore = false;
-      m.redraw(); // 确保最终的 UI 状态被渲染
-      console.log('Loading finished, redraw called.'); // 调试日志
+      m.redraw();
+      console.log('Loading finished, redraw called.');
     });
-  }
-
-  // 加载标签列表的方法
-  ;
+  };
   _proto.loadTags = function loadTags() {
     var _this3 = this;
+    console.log('Attempting to load tags from API because store is empty.'); // 调试日志
     this.loadingTags = true;
-    // 可以选择在这里重绘以显示加载状态
-    // m.redraw();
+    m.redraw(); // 确保加载状态立即反映
 
-    // 发起 API 请求获取所有标签，按名称排序
     app.store.find('dependency-tags', {
       sort: 'name'
     }).then(function (tags) {
-      console.log('Tags loaded:', tags); // 调试日志
-      // 确保返回的是数组
-      if (Array.isArray(tags)) {
-        _this3.tags = tags;
-      } else {
-        console.error('API did not return an array for dependency-tags:', tags);
-        _this3.tags = []; // 保证 tags 是一个空数组
+      console.log('Tags loaded from API:', tags);
+      // store 会自动更新 app.store.all('dependency-tags')
+      // 所以我们只需要更新组件内的 this.tags 即可
+      _this3.tags = app.store.all('dependency-tags');
+      if (!Array.isArray(_this3.tags)) {
+        // 双重检查，以防 store 返回非数组
+        console.error('app.store.all("dependency-tags") did not return an array after find:', _this3.tags);
+        _this3.tags = [];
       }
     })["catch"](function (error) {
-      // 处理错误
       console.error('Error loading tags:', error);
-      _this3.tags = []; // 出错时也保证 tags 是空数组
-      // 可以显示错误提示
+      _this3.tags = []; // 出错时也保证 this.tags 是空数组
       app.alerts.show({
         type: 'error'
       }, app.translator.trans('shebaoting-dependency-collector.forum.list.load_tags_error'));
     })["finally"](function () {
-      // 结束标签加载状态
       _this3.loadingTags = false;
-      // 确保标签列表加载完成后 UI 能更新，即使依赖项列表还在加载
+      // 再次从 store 获取，确保拿到最新的数据
+      var storeTags = app.store.all('dependency-tags');
+      _this3.tags = Array.isArray(storeTags) ? storeTags : [];
       m.redraw();
-      console.log('Tag loading finished.'); // 调试日志
+      console.log('Tag loading finished. Tags in component state:', _this3.tags);
     });
-  }
-
-  // 加载更多依赖项的方法
-  ;
+  };
   _proto.loadMore = function loadMore() {
-    // 如果正在加载中（初始或更多），则不执行任何操作
     if (this.loadingItems || this.loadingMore) return;
-    console.log('Loading more items...'); // 调试日志
-    // 调用 loadResults，使用当前项目数量作为下一页的偏移量
+    console.log('Loading more items...');
     this.loadResults(this.items.length);
-  }
-
-  // 组件移除时的清理方法
-  ;
+  };
   _proto.onremove = function onremove(vnode) {
-    console.log('DependencyListPage onremove'); // 调试日志
+    console.log('DependencyListPage onremove');
     _Page.prototype.onremove.call(this, vnode);
-    // 如果有事件监听器或其他需要清理的资源，在此处处理
   };
   _proto.showMyFavorites = function showMyFavorites() {
+    // --- 修改: 当点击 "My Favorites" 时，如果当前不是 "My Favorites"，则切换路由 ---
+    // 同时也应该确保，如果当前是某个标签的筛选，也切换到 "My Favorites"
     if (!this.showingFavorites) {
-      // 只有当当前不是收藏列表时才切换
+      m.route.set(app.route('dependency-collector.forum.index', {
+        filter: 'favorites'
+      }));
+    } else if (this.showingFavorites && this.currentTagFilter) {
+      // 如果当前是收藏夹但同时有标签过滤 (虽然你的UI可能不允许，但逻辑上可以处理)
+      // 这种情况下，可能希望清除标签过滤，只看收藏夹
       m.route.set(app.route('dependency-collector.forum.index', {
         filter: 'favorites'
       }));
     }
+    // --- 修改结束 ---
   };
   return DependencyListPage;
 }((flarum_common_components_Page__WEBPACK_IMPORTED_MODULE_1___default()));
