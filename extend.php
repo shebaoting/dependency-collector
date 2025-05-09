@@ -71,6 +71,6 @@ return [
         })
 
         ->attribute('canFavoriteDependencyCollectorItemGlobal', function ($serializer, $model, $attributes) { // 注意这里我用了 Global 后缀
-            return $serializer->getActor()->hasPermission('dependency-collector.favoriteItems');
+            return !$serializer->getActor()->isGuest();
         })
 ];

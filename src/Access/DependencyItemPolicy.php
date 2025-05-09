@@ -64,6 +64,6 @@ class DependencyItemPolicy extends AbstractPolicy
         // if ($item->status !== 'approved') {
         //     return $this->deny();
         // }
-        return $actor->hasPermission('dependency-collector.favoriteItems') ? $this->allow() : $this->deny();
+        return $this->allow();
     }
 }
